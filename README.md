@@ -1,3 +1,16 @@
+### pip 快速安裝
+- 安裝所有所需套件
+    ```
+    pip install -r requirements.txt
+    ```
+
+- 如有版本相依問題，請重新安裝套件
+    ```
+    pip freeze > installation.txt
+    pip uninstall -r installation.txt -y
+    pip install -r requirements.txt
+    ```
+
 ### mitmproxy 安裝步驟
 > 此為 win11 的安裝步驟
 1. 安裝並啟動 mitmproxy
