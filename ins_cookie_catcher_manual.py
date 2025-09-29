@@ -28,7 +28,11 @@ def save_selenium_credentials_to_json(driver, filename):
         if critical_name not in cookies_names_set:
             missing_cookies.append(critical_name)
 
-    print("Cookie 提取成功！")
+    if missing_cookies:
+        print(f"錯誤：未能獲取所有關鍵 Cookie。")
+        print(f"  - 缺失的 Cookie: {', '.join(missing_cookies)}")
+    else:
+        print("Cookie 提取成功！")
     
     credentials_data = {
         "user_agent": driver.execute_script("return navigator.userAgent;"),
@@ -96,7 +100,7 @@ def manual_login_and_save_cookies(filename):
 
 if __name__ == "__main__":
     try:
-        output_filename = "instagram_credentials_selenium_manual.json"
+        output_filename = "ins_cred_se_manual.json"
         manual_login_and_save_cookies(output_filename)
     except KeyboardInterrupt:
         print("\n\n操作中斷。")
