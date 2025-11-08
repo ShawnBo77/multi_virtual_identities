@@ -3,6 +3,7 @@ import os
 import time
 import random
 import sys
+import argparse
 from pathlib import Path
 
 from seleniumwire import webdriver
@@ -37,7 +38,7 @@ def save_json_no_overwrite(data, output_path):
 
             counter += 1
         
-        print(f"\n注意：原始檔案已存在。結果將改儲存至 {output_path}")
+        # print(f"\n注意：原始檔案已存在。結果將改儲存至 {output_path}")
     
     os.makedirs(directory, exist_ok=True) # 用 makedirs 自動建立所有不存在的中間目錄
     with open(output_path, "w", encoding="utf-8") as f:
@@ -120,7 +121,7 @@ def save_posts_as_individual_files(posts_data: list, target_username: str):
 
     print("--- 開始將貼文儲存為獨立檔案 ---")
 
-    base_dir = "data"
+    base_dir = "../data"
     user_dir = os.path.join(base_dir, target_username)
     posts_dir = os.path.join(user_dir, "posts")
     
@@ -216,7 +217,7 @@ def get_user_posts(target_username: str, num_posts_to_fetch: int, credentials: d
                     response_text = response_body.decode('utf-8') 
 
                     data = json.loads(response_text)
-                    save_json_no_overwrite(data, f"raw_data/{target_username}_response_text.json")
+                    save_json_no_overwrite(data, f"../raw_data/{target_username}_response_text.json")
 
                     feed_data = data.get('data', {}).get('xdt_api__v1__feed__user_timeline_graphql_connection', {})
                     edges = feed_data.get('edges', [])
@@ -258,12 +259,17 @@ def get_user_posts(target_username: str, num_posts_to_fetch: int, credentials: d
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="抓取指定 Instagram 用戶貼文")
+    parser.add_argument("username", type=str, help="目標 Instagram 用戶名稱")
+    parser.add_argument("-n", "--num-posts", type=int, default=20, help="希望抓取的貼文數量")
+    args = parser.parse_args()
+
+    TARGET_USERNAME = args.username
+    POSTS_TO_FETCH = args.num_posts
+
     credentials = load_selenium_credentials("ins_cred_se_manual.json")
     if not credentials:
         sys.exit(1)
-
-    TARGET_USERNAME = "onionman__"
-    POSTS_TO_FETCH = 40
 
     try:
         latest_posts = get_user_posts(TARGET_USERNAME, POSTS_TO_FETCH, credentials, 50)
