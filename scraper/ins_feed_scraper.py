@@ -144,7 +144,7 @@ def save_posts_as_individual_files(posts_data: list, target_username: str):
 
     print("--- 儲存流程完成 ---")
 
-def get_user_posts(target_username: str, num_posts_to_fetch: int, credentials: dict, max_scroll_attempts: int):
+def get_user_posts(target_username: str, num_posts_to_fetch: int, credentials: dict):
     print(f"--- 準備使用 Selenium-Wire (Firefox) 抓取 @{target_username} 的貼文 ---")
 
     service = FirefoxService(GeckoDriverManager().install())
@@ -184,7 +184,7 @@ def get_user_posts(target_username: str, num_posts_to_fetch: int, credentials: d
 
     packet_count = 0
     reach_bottom_flag = 0
-    while len(all_posts) < num_posts_to_fetch and scroll_attempts < max_scroll_attempts and not reach_bottom_flag:
+    while len(all_posts) < num_posts_to_fetch and not reach_bottom_flag:
         print(f"\n第 {scroll_attempts + 1} 輪滾動開始!")
         
         if scroll_attempts != 0:
@@ -272,7 +272,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     try:
-        latest_posts = get_user_posts(TARGET_USERNAME, POSTS_TO_FETCH, credentials, 50)
+        latest_posts = get_user_posts(TARGET_USERNAME, POSTS_TO_FETCH, credentials)
         save_posts_as_individual_files(latest_posts, TARGET_USERNAME)
             
     except WebDriverException as e:
