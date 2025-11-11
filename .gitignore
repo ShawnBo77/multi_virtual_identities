@@ -1,4 +1,5 @@
 record
 __pycache__
-*.json
+*data
 flows
+*cred*.json

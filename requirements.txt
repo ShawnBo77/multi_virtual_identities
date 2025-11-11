@@ -5,3 +5,5 @@ selenium-wire
 beautifulsoup4
 webdriver-manager
 blinker==1.6.2
+fastapi[all]
+uvicorn[standard]
