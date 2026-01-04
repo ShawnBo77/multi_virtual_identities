@@ -12,6 +12,11 @@ const ICONS = {
     more: '<svg aria-label="更多選項" color="currentColor" fill="currentColor" height="24" role="img" viewBox="0 0 24 24" width="24"><circle cx="12" cy="12" r="1.5"></circle><circle cx="6" cy="12" r="1.5"></circle><circle cx="18" cy="12" r="1.5"></circle></svg>'
 };
 
+const NAV_ICONS = {
+    prev: '<svg aria-label="Previous" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+    next: '<svg aria-label="Next" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>'
+};
+
 // ==========================================
 // Client
 // ==========================================
@@ -258,7 +263,7 @@ async function fetchUserPosts(identifier, limit = 1) {
 }
 
 function createCustomPostElement(data) {
-    const postWrapper = document.createElement('div');
+    const postWrapper = document.createElement('article');
     postWrapper.className = 'custom-post-wrapper';
     postWrapper.id = `custom-post-${data.code}`;
 
@@ -267,22 +272,153 @@ function createCustomPostElement(data) {
     const profilePicUrl = owner.profile_pic_local_url || `https://ui-avatars.com/api/?name=${username.charAt(0)}&background=random&color=fff&size=32`;
     const postLink = `https://www.instagram.com/p/${data.code}/`;
 
-    const sortedMedia = media_items.sort((a, b) => a.position - b.position);
-    const mediaItem = sortedMedia[0];
-    const isVideo = mediaItem.video_local_url;
+    // Sort media items
+    const sortedMedia = media_items.sort((a, b) => {
+        // Helper: Extract leading number from filename in URL
+        const getIndexFromUrl = (item) => {
+            // Get any available local URL
+            const url = item.image_local_url || item.video_local_url;
+            if (!url) return 999; // If no URL, push to end
 
-    let mediaHTML = '';
-    if (isVideo) {
-        mediaHTML = `<video src="${mediaItem.video_local_url}" poster="${mediaItem.image_local_url}" autoplay muted loop playsinline style="width: 100%;"></video>`;
-    } else {
-        mediaHTML = `<img src="${mediaItem.image_local_url}" alt="Post content">`;
+            try {
+                // Get filename (e.g., 00_12345.jpg)
+                const filename = url.substring(url.lastIndexOf('/') + 1);
+                // Get part before underscore (e.g., 00)
+                const prefix = filename.split('_')[0];
+                // Convert to number
+                const index = parseInt(prefix, 10);
+                return isNaN(index) ? 999 : index;
+            } catch (e) {
+                return 999;
+            }
+        };
+
+        return getIndexFromUrl(a) - getIndexFromUrl(b);
+    });
+
+    const hasMultipleMedia = sortedMedia.length > 1;
+
+    // Generate HTML for media items
+    const mediaAllHTML = sortedMedia.map(item => {
+        const isVideo = item.media_type === 2 || (item.video_local_url !== null);
+        const imageUrl = item.image_local_url || item.image_url;
+        const videoUrl = item.video_local_url || item.video_url;
+
+        let contentHTML = '';
+        if (isVideo && videoUrl) {
+            contentHTML = `<video src="${videoUrl}" poster="${imageUrl}" autoplay muted loop playsinline></video>`;
+        } else {
+            contentHTML = `<img src="${imageUrl}" alt="Post content">`;
+        }
+
+        return `<div class="carousel-item">${contentHTML}</div>`;
+    }).join('');
+
+    // Generate Navigation Elements (Arrows & Dots)
+    let navigationHTML = '';
+    if (hasMultipleMedia) {
+        // Arrow icons (Chevron Left/Right)
+        const prevIcon = NAV_ICONS.prev;
+        const nextIcon = NAV_ICONS.next;
+
+        // Generate dots HTML
+        const dotsHTML = sortedMedia.map((_, index) =>
+            `<div class="dot ${index === 0 ? 'active' : ''}" data-index="${index}"></div>`
+        ).join('');
+
+        navigationHTML = `
+            <button class="nav-btn prev hidden" type="button">${prevIcon}</button>
+            <button class="nav-btn next" type="button">${nextIcon}</button>
+            <div class="dots-container">${dotsHTML}</div>
+        `;
     }
 
+    const captionText = (data.caption_text || '').replace(/\n/g, '<br>');
+
     postWrapper.innerHTML = `
-        <header class="custom-post-header"><div class="header-left"><a class="profile-pic-container" href="https://www.instagram.com/${username}/" target="_blank"><img class="profile-pic" src="${profilePicUrl}" alt="${username}"></a><div class="user-text-info"><div class="username-row"><a class="username" href="https://www.instagram.com/${username}/" target="_blank">${username}</a>${owner.is_verified ? '<span class="verified-badge"></span>' : ''}<span class="time-separator">•</span><span class="post-time">1小時</span></div></div></div><div class="more-options">${ICONS.more}</div></header>
-        <div class="carousel-container"><div class="carousel-item">${mediaHTML}</div></div>
-        <footer class="custom-post-footer"><div class="actions-bar"><button class="action-btn">${ICONS.like}</button><button class="action-btn">${ICONS.comment}</button><button class="action-btn">${ICONS.share}</button><button class="action-btn save">${ICONS.save}</button></div><div class="likes-section">${data.like_count.toLocaleString()} 個讚</div><div class="caption-section"><a class="caption-username" href="https://www.instagram.com/${username}/" target="_blank">${username}</a><span class="caption-text">${(data.caption_text || '').replace(/\n/g, '<br>')}</span></div><a class="more-comments" href="${postLink}" target="_blank">查看全部 ${data.comment_count.toLocaleString()} 則留言</a><div class="add-comment-section"><input type="text" class="comment-input" placeholder="留言......"><button class="post-btn" disabled>發佈</button></div></footer>
+        <header class="custom-post-header">
+            <div class="header-left">
+                <a class="profile-pic-container" href="https://www.instagram.com/${username}/" target="_blank">
+                    <img class="profile-pic" src="${profilePicUrl}" alt="${username}">
+                </a>
+                <div class="user-text-info">
+                    <div class="username-row">
+                        <a class="username" href="https://www.instagram.com/${username}/" target="_blank">${username}</a>
+                        <span class="time-separator">•</span>
+                        <span class="post-time">1小時</span>
+                    </div>
+                </div>
+            </div>
+            <div class="more-options">${ICONS.more}</div>
+        </header>
+        <div class="carousel-wrapper">
+            <div class="carousel-container">
+                ${mediaAllHTML}
+            </div>
+            ${navigationHTML}
+        </div>
+        <footer class="custom-post-footer">
+            <div class="actions-bar">
+                <div class="actions-left">
+                    <a class="action-btn" href="${postLink}" target="_blank">${ICONS.like}</a>
+                    <span class="action-count">${data.like_count.toLocaleString()}</span>
+                    <a class="action-btn" href="${postLink}" target="_blank">${ICONS.comment}</a>
+                    <span class="action-count">${data.comment_count.toLocaleString()}</span>
+                    <button class="action-btn">${ICONS.share}</button>
+                </div>
+                <button class="action-btn save">${ICONS.save}</button>
+            </div>
+            <div class="caption-section">
+                <a class="caption-username" href="https://www.instagram.com/${username}/" target="_blank">${username}</a>
+                <span class="caption-text">${captionText}</span>
+            </div>
+        </footer>
     `;
+
+    // Bind Events for Carousel Navigation (if multiple items exist)
+    if (hasMultipleMedia) {
+        const container = postWrapper.querySelector('.carousel-container');
+        const prevBtn = postWrapper.querySelector('.nav-btn.prev');
+        const nextBtn = postWrapper.querySelector('.nav-btn.next');
+        const dots = postWrapper.querySelectorAll('.dot');
+        const getItemWidth = () => container.clientWidth || 470;
+
+        const updateUI = () => {
+            const scrollLeft = container.scrollLeft;
+            const width = getItemWidth();
+            const scrollWidth = container.scrollWidth;
+            
+            const currentIndex = Math.round(scrollLeft / width);
+
+            if (currentIndex <= 0) prevBtn.classList.add('hidden');
+            else prevBtn.classList.remove('hidden');
+
+            // Tolerance for float calculation
+            if (scrollLeft + width >= scrollWidth - 5) nextBtn.classList.add('hidden');
+            else nextBtn.classList.remove('hidden');
+
+            dots.forEach((dot, idx) => {
+                if (idx === currentIndex) dot.classList.add('active');
+                else dot.classList.remove('active');
+            });
+        };
+
+        prevBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            container.scrollBy({ left: -getItemWidth(), behavior: 'smooth' });
+        });
+
+        nextBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            container.scrollBy({ left: getItemWidth(), behavior: 'smooth' });
+        });
+
+        container.addEventListener('scroll', () => {
+            window.requestAnimationFrame(updateUI);
+        });
+        
+        setTimeout(updateUI, 200);
+    }
 
     return postWrapper;
 }
@@ -342,7 +478,7 @@ function createAnonymousFollowButton(username) {
             button.textContent = '✓ Anon Following';
             button.classList.add('following');
         } else {
-            button.textContent = 'Anonymous Follow';
+            button.textContent = 'Anon Follow';
             button.classList.remove('following');
         }
     };

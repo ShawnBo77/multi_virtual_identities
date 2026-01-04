@@ -1,12 +1,19 @@
-/* Outer Wrapper */
+/* =========================================
+   Instagram Native Look-alike CSS
+   Using IG native variables for Auto Dark Mode
+   ========================================= */
+
+/* Post Container */
 .custom-post-wrapper {
     max-width: 470px;
-    margin: 0 auto 20px auto;
+    /* Standard IG feed width */
     width: 100%;
+    margin: 0 auto 12px auto;
+    /* Matches feed spacing */
+    background-color: var(--ig-primary-background);
+    border-bottom: 1px solid var(--ig-separator);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background-color: #fff;
-    border-radius: 8px;
-    border: 1px solid rgb(219, 219, 219);
+    color: var(--ig-primary-text);
     box-sizing: border-box;
 }
 
@@ -14,7 +21,9 @@
 .custom-post-header {
     display: flex;
     align-items: center;
-    padding: 14px 4px 14px 16px;
+    justify-content: space-between;
+    padding: 8px 4px 8px 5px;
+    /* Native padding */
     height: 60px;
     box-sizing: border-box;
 }
@@ -23,13 +32,16 @@
     display: flex;
     align-items: center;
     flex-grow: 1;
+    overflow: hidden;
 }
 
 .profile-pic-container {
+    display: block;
     width: 32px;
     height: 32px;
     margin-right: 12px;
     cursor: pointer;
+    flex-shrink: 0;
 }
 
 .profile-pic {
@@ -37,12 +49,14 @@
     height: 100%;
     border-radius: 50%;
     object-fit: cover;
+    border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .user-text-info {
     display: flex;
     flex-direction: column;
     justify-content: center;
+    overflow: hidden;
 }
 
 .username-row {
@@ -50,92 +64,172 @@
     align-items: center;
     font-size: 14px;
     line-height: 18px;
+    white-space: nowrap;
 }
 
 .username {
     font-weight: 600;
-    color: #262626;
+    color: var(--ig-primary-text) !important;
     text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.username:hover {
+.username:hover,
+.username:visited,
+.username:active {
+    color: var(--ig-primary-text) !important;
     text-decoration: none;
     opacity: 0.7;
 }
 
-.verified-badge {
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    background-position: -130px -316px;
-    background-repeat: no-repeat;
-    margin-left: 4px;
-}
-
 .time-separator {
     margin: 0 4px;
-    color: #737373;
+    color: var(--ig-secondary-text);
 }
 
 .post-time {
-    color: #737373;
+    color: var(--ig-secondary-text) !important;
     font-size: 14px;
-}
-
-.follow-btn-text {
-    border: none;
-    background: none;
-    color: #0095f6;
-    font-weight: 600;
-    font-size: 14px;
-    cursor: pointer;
-    margin-left: 8px;
-    padding: 0;
-}
-
-.follow-btn-text:hover {
-    color: #00376b;
-}
-
-.follow-btn-text.following {
-    color: #737373;
-    cursor: default;
 }
 
 .more-options {
     padding: 8px;
     cursor: pointer;
+    color: var(--ig-primary-text);
+    display: flex;
+    align-items: center;
 }
 
-/* Media Container */
+/* Media Section */
+.carousel-wrapper {
+    width: 470px;
+    max-width: 100%;
+    background-color: var(--ig-primary-background);
+    position: relative;
+}
+
+/* Ensure the container fits perfectly */
 .carousel-container {
     width: 100%;
-    background-color: #efefef;
+    height: auto;
+
+    display: flex;
+    align-items: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+
+    /* Hide scrollbars */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.carousel-container::-webkit-scrollbar {
+    display: none;
+}
+
+.carousel-item {
+    width: 100%;
+    height: auto;
+    flex-shrink: 0;
+    scroll-snap-align: start;
+
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 300px;
-    border-top: 1px solid rgb(239, 239, 239);
+    position: relative;
 }
 
 .carousel-item img,
 .carousel-item video {
     width: 100%;
     height: auto;
+    object-fit: contain;
     display: block;
-    object-fit: cover;
 }
 
-/* Footer / Action Section */
+
+/* Navigation Buttons (Arrows) */
+.nav-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: rgba(255, 255, 255, 0.7);
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 20;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    opacity: 1;
+    transition: opacity 0.2s;
+}
+
+.nav-btn:hover {
+    background-color: #ffffff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.nav-btn.prev {
+    left: 10px;
+}
+
+.nav-btn.next {
+    right: 10px;
+}
+
+.nav-btn.hidden {
+    display: none;
+}
+
+/* Dots / Pagination at bottom */
+.dots-container {
+    position: absolute;
+    bottom: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 4px;
+    z-index: 20;
+    pointer-events: none;
+    filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.5));
+}
+
+.dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.4);
+    transition: background-color 0.2s;
+}
+
+.dot.active {
+    background-color: #ffffff;
+}
+
+/* Footer / Interactions */
 .custom-post-footer {
-    padding: 6px 16px;
+    padding: 0;
 }
 
 .actions-bar {
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    padding: 6px 0 8px;
     margin-top: 4px;
-    margin-bottom: 8px;
+}
+
+.actions-left {
+    display: flex;
+    align-items: center;
 }
 
 .action-btn {
@@ -143,27 +237,40 @@
     border: none;
     cursor: pointer;
     padding: 8px;
-    margin-left: -8px;
+    color: var(--ig-primary-text);
+    display: flex;
+    align-items: center;
+    text-decoration: none;
 }
 
-.action-btn:hover {
-    opacity: 0.7;
-}
-
-.action-btn svg {
-    display: block;
+/* Align the first button with the left edge */
+.actions-left .action-btn:first-child {
+    margin-left: 0;
 }
 
 .action-btn.save {
-    margin-left: auto;
     margin-right: -8px;
 }
 
+.action-btn:hover {
+    opacity: 0.6;
+}
+
+/* Text Content Area */
 .likes-section {
     font-weight: 600;
     font-size: 14px;
     margin-bottom: 8px;
-    color: #262626;
+    color: var(--ig-primary-text);
+}
+
+.action-count {
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--ig-primary-text);
+    margin-left: -2px;
+    margin-right: 12px;
+    line-height: 18px;
 }
 
 .caption-section {
@@ -171,87 +278,31 @@
     line-height: 18px;
     margin-bottom: 8px;
     word-wrap: break-word;
+    color: var(--ig-primary-text);
 }
 
 .caption-username {
     font-weight: 600;
-    margin-right: 4px;
-    color: #262626;
+    margin-right: 5px;
+    color: var(--ig-primary-text) !important;
     text-decoration: none;
 }
 
-.caption-text {
-    color: #262626;
+.caption-username:hover,
+.caption-username:visited,
+.caption-username:active {
+    color: var(--ig-primary-text) !important;
+    opacity: 0.7;
 }
 
-.more-comments {
-    display: block;
-    color: #737373;
-    font-size: 14px;
-    text-decoration: none;
-    margin-bottom: 8px;
-    cursor: pointer;
-}
-
-.add-comment-section {
-    border-top: 1px solid rgb(239, 239, 239);
-    padding: 12px 0;
-    margin-top: 12px;
-    display: flex;
-    align-items: center;
-    font-size: 14px;
-}
-
-.comment-input {
-    flex-grow: 1;
-    border: none;
-    outline: none;
-    resize: none;
-    color: #262626;
-    background: transparent;
-}
-
-.post-btn {
-    color: #0095f6;
-    font-weight: 600;
-    border: none;
-    background: none;
-    cursor: pointer;
-    opacity: 0.3;
-}
-
-html.__fb-dark-mode .custom-post-wrapper {
-    background-color: #000;
-    border: 1px solid #262626;
-}
-
-html.__fb-dark-mode .custom-post-header,
-html.__fb-dark-mode .carousel-container,
-html.__fb-dark-mode .add-comment-section {
-    border-color: #262626;
-}
-
-html.__fb-dark-mode .username,
-html.__fb-dark-mode .likes-section,
-html.__fb-dark-mode .caption-username,
-html.__fb-dark-mode .caption-text,
-html.__fb-dark-mode .comment-input,
-html.__fb-dark-mode svg {
-    color: #f5f5f5;
-    fill: #f5f5f5;
-}
-
-html.__fb-dark-mode .time-separator,
-html.__fb-dark-mode .post-time,
-html.__fb-dark-mode .more-comments {
-    color: #a8a8a8;
-}
-
-/* Anonymous Follow button */
+/* =========================================
+   Anonymous Follow Button (Profile Page)
+   ========================================= */
 .anonymous-follow-btn {
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 125px;
 
     background-color: #0095f6;
     color: #ffffff;
@@ -289,22 +340,6 @@ html.__fb-dark-mode .more-comments {
     cursor: not-allowed;
 }
 
-html.__fb-dark-mode .anonymous-follow-btn {
-    background-color: #0095f6;
-    color: #ffffff;
-}
-
-html.__fb-dark-mode .anonymous-follow-btn:hover {
-    background-color: #1877f2;
-}
-
-html.__fb-dark-mode .anonymous-follow-btn.following {
-    background-color: #262626;
-    color: #f5f5f5;
-    border: 1px solid #363636;
-}
-
-html.__fb-dark-mode .anonymous-follow-btn.following:hover {
-    background-color: #363636;
-    color: #ffffff;
+.anonymous-follow-btn:active {
+    opacity: 0.7;
 }
