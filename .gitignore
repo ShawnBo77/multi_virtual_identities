@@ -1,5 +1,9 @@
 record
 __pycache__
 *data
+*media
 flows
 *cred*.json
+sql_app.db
+.vscode
+localhost*

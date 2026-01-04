@@ -1,0 +1,10 @@
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.format]
+# 使用 Ruff formatter
+quote-style = "double"
+indent-style = "space"
+
+skip-magic-trailing-comma = true
+line-ending = "lf"
