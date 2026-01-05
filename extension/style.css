@@ -1,13 +1,12 @@
 /* Post Container */
 .custom-post-wrapper {
-    max-width: 470px;
     /* Standard IG feed width */
+    max-width: 470px;
     width: 100%;
     margin-left: auto;
     margin-right: auto;
     margin-top: 0px;
     margin-bottom: 20px;
-    /* Matches feed spacing */
     background-color: var(--ig-primary-background);
     border-bottom: 1px solid var(--ig-separator);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -21,7 +20,6 @@
     align-items: center;
     justify-content: space-between;
     padding: 8px 4px 8px 5px;
-    /* Native padding */
     height: 60px;
     box-sizing: border-box;
 }
@@ -31,6 +29,15 @@
     align-items: center;
     flex-grow: 1;
     overflow: hidden;
+}
+
+.custom-date-text {
+    color: #737373;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 14px;
+    font-weight: 500;
+    margin-left: 3px;
 }
 
 .profile-pic-container {
@@ -80,16 +87,6 @@
     color: var(--ig-primary-text) !important;
     text-decoration: none;
     opacity: 0.7;
-}
-
-.time-separator {
-    margin: 0 4px;
-    color: var(--ig-secondary-text);
-}
-
-.post-time {
-    color: var(--ig-secondary-text) !important;
-    font-size: 14px;
 }
 
 .more-options {
@@ -151,8 +148,10 @@
     height: auto;
     object-fit: contain;
     display: block;
+    border: 1px solid rgb(200, 200, 200);
+    border-radius: 4px;
+    box-sizing: border-box;
 }
-
 
 /* Navigation Buttons (Arrows) */
 .nav-btn {
@@ -225,7 +224,10 @@
     position: relative;
     width: 100%;
     height: 100%;
-    background-color: #000;
+    background-color: var(--ig-primary-background);
+    border-radius: 4px;
+    overflow: hidden;
+    box-sizing: border-box;
 }
 
 /* The Video Element */
@@ -233,8 +235,9 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    /* Ensures video fills the area without distortion */
     display: block;
+    border: none;
+    outline: none;
 }
 
 /* Sound Toggle Button */
@@ -243,26 +246,26 @@
     bottom: 12px;
     right: 12px;
     z-index: 10;
-    
-    /* Appearance: Small black circle */
-    background: rgba(26, 26, 26, 0.8); /* Darker background */
+
+    background: rgba(26, 26, 26, 0.8);
     color: white;
     border-radius: 50%;
-    width: 24px;   /* Smaller size */
-    height: 24px;  /* Smaller size */
-    border: none; /* No border */
+    width: 24px;
+    height: 24px;
+    border: none;
     padding: 0;
-    
+
     /* Layout & Interaction */
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: background-color 0.2s ease, transform 0.1s ease;
-    
+
     /* Remove default button styles */
     outline: none;
-    box-shadow: 0 0 4px rgba(0,0,0,0.3); /* Subtle shadow for contrast */
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+    /* Subtle shadow for contrast */
 }
 
 .sound-btn svg {

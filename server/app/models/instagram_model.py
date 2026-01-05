@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from ..database import Base
@@ -6,6 +6,7 @@ from ..database import Base
 
 class InstagramUser(Base):
     __tablename__ = "instagram_users"
+
     id = Column(Integer, primary_key=True, index=True)
     pk = Column(String, unique=True, index=True, nullable=True)
     username = Column(String, unique=True, index=True, nullable=False)
@@ -21,6 +22,7 @@ class InstagramUser(Base):
 
 class InstagramPost(Base):
     __tablename__ = "instagram_posts"
+
     id = Column(Integer, primary_key=True, index=True)
     pk = Column(String, unique=True, index=True, nullable=False)
     code = Column(String, unique=True)
@@ -38,6 +40,7 @@ class InstagramPost(Base):
 
 class InstagramMedia(Base):
     __tablename__ = "instagram_media"
+
     id = Column(Integer, primary_key=True, index=True)
     pk = Column(String, unique=True, index=True, nullable=False)
     media_type = Column(Integer)
@@ -49,3 +52,15 @@ class InstagramMedia(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     post_id = Column(Integer, ForeignKey("instagram_posts.id"))
     post = relationship("InstagramPost", back_populates="media_items")
+
+
+class InstagramFeedHistory(Base):
+    __tablename__ = "instagram_feed_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False, index=True)
+    post_id = Column(Integer, ForeignKey("instagram_posts.id"), nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("client_id", "post_id", name="_client_ig_post_uc"),)

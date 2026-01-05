@@ -20,17 +20,6 @@ const NAV_ICONS = {
 };
 
 // ==========================================
-// Helper: Shuffle Array (Fisher-Yates)
-// ==========================================
-function shuffleArray(array) {
-    for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-    }
-    return array;
-}
-
-// ==========================================
 // Client
 // ==========================================
 
@@ -263,14 +252,15 @@ async function fetchFollowingsFromServer() {
 // Post
 // ==========================================
 
-async function fetchUserPosts(identifier, limit = 1) {
+async function fetchFeed(limit = 2) {
     if (!CLIENT_ID) return [];
-    const url = `${API_BASE_URL}/instagram/users/${identifier}/posts?limit=${limit}`;
+    const url = `${API_BASE_URL}/instagram/feed?limit=${limit}`;
     try {
         const response = await fetch(url, { headers: { 'Client-ID': CLIENT_ID } });
         if (!response.ok) return [];
         return await response.json();
     } catch (error) {
+        console.error('[IG Injector] Fetch feed failed:', error);
         return [];
     }
 }
@@ -282,7 +272,10 @@ function createCustomPostElement(data) {
 
     const { owner, media_items } = data;
     const username = owner.username;
+    const userProfileUrl = `https://www.instagram.com/${username}/`;
     const profilePicUrl = owner.profile_pic_local_url || `https://ui-avatars.com/api/?name=${username.charAt(0)}&background=random&color=fff&size=32`;
+    const postDate = new Date(data.taken_at);
+    const dataString = `${postDate.getFullYear()}/${postDate.getMonth() + 1}/${postDate.getDate()}`;
     const postLink = `https://www.instagram.com/p/${data.code}/`;
 
     // Sort media items
@@ -321,7 +314,7 @@ function createCustomPostElement(data) {
 
         if (isVideo && videoUrl) {
             // Structure: Wrapper + Video + Sound Button
-            // We use 'data-src' to prevent immediate loading for CSP bypass logic
+            // Use 'data-src' to prevent immediate loading for CSP bypass logic
             contentHTML = `
                 <div class="video-wrapper">
                     <video data-src="${videoUrl}" poster="${imageUrl}" autoplay muted loop playsinline class="post-video"></video>
@@ -379,14 +372,13 @@ function createCustomPostElement(data) {
     postWrapper.innerHTML = `
         <header class="custom-post-header">
             <div class="header-left">
-                <a class="profile-pic-container" href="https://www.instagram.com/${username}/" target="_blank">
+                <a class="profile-pic-container" href="${userProfileUrl}" target="_blank">
                     <img class="profile-pic" src="${profilePicUrl}" alt="${username}">
                 </a>
                 <div class="user-text-info">
                     <div class="username-row">
-                        <a class="username" href="https://www.instagram.com/${username}/" target="_blank">${username}</a>
-                        <span class="time-separator">•</span>
-                        <span class="post-time">1小時</span>
+                        <a class="username" href="${userProfileUrl}" target="_blank">${username}</a>
+                        <span class="custom-date-text"> • ${dataString}</span>
                     </div>
                 </div>
             </div>
@@ -410,7 +402,7 @@ function createCustomPostElement(data) {
                 <button class="action-btn save">${ICONS.save}</button>
             </div>
             <div class="caption-section">
-                <a class="caption-username" href="https://www.instagram.com/${username}/" target="_blank">${username}</a>
+                <a class="caption-username" href="${userProfileUrl}" target="_blank">${username}</a>
                 <span class="caption-text">${captionText}</span>
             </div>
         </footer>
@@ -489,15 +481,15 @@ function createCustomPostElement(data) {
 }
 
 async function injectPost() {
-    const USERS_TO_FETCH = 3;    // 隨機選取 3 位使用者
-    const POSTS_PER_USER = 2;    // 每位使用者顯示 2 篇貼文
+    // Set the number of new posts to fetch in one batch
+    const FEED_LIMIT = 2;
 
     // Only inject on the Instagram home page ('/')
     if (window.location.pathname !== '/') {
         return;
     }
 
-    // Check if we have already injected posts to prevent duplicates
+    // Check if we have already injected posts
     if (document.querySelector('.custom-post-wrapper')) {
         clearInterval(injectionInterval);
         return;
@@ -510,41 +502,21 @@ async function injectPost() {
     const feedContainer = firstPostArticle.parentElement?.parentElement;
     if (!feedContainer) return;
 
-    // Get Follow List
-    const effectiveList = getEffectiveFollowList();
-    if (effectiveList.length === 0) {
-        clearInterval(injectionInterval);
-        return;
-    }
-
     // Stop interval processing
     clearInterval(injectionInterval);
-    console.log(`[IG Injector] Starting batch injection: ${USERS_TO_FETCH} users, ${POSTS_PER_USER} posts each...`);
+    console.log(`[IG Injector] Checking for new feed posts (Limit: ${FEED_LIMIT})...`);
 
-    // Select Users: Shuffle and pick random N users
-    const shuffledUsers = shuffleArray([...effectiveList]);
-    const targetUsers = shuffledUsers.slice(0, USERS_TO_FETCH);
-
-    // Fetch posts concurrently
-    // 注意：fetchUserPosts 的第二個參數是 limit，這裡傳入 POSTS_PER_USER
-    const promises = targetUsers.map(user => fetchUserPosts(user, POSTS_PER_USER));
-    const results = await Promise.all(promises);
-
-    // Flatten the results (array of arrays -> single array of posts)
-    // results 結構原本是: [[UserA_Post1, UserA_Post2], [UserB_Post1, UserB_Post2]]
-    // flat() 後變成: [UserA_Post1, UserA_Post2, UserB_Post1, UserB_Post2]
-    let allPosts = results.flat();
+    const allPosts = await fetchFeed(FEED_LIMIT);
 
     if (allPosts.length === 0) {
-        console.log('[IG Injector] No valid posts found.');
+        console.log('[IG Injector] No new unsent posts found.');
         return;
     }
 
-    // 這裡我們將陣列反轉 (reverse)，因為 insertBefore 是插入在最前面。
-    // 為了讓螢幕上顯示順序為 [UserA_1, UserA_2, UserB_1...]，
-    // 我們需要以相反順序插入：先插 UserB_2 -> UserB_1 -> UserA_2 -> UserA_1
-    // 這樣 UserA_1 就會被擠到最上面的位置。
-    allPosts.reverse().forEach(postData => {
+    // Reverse the array so that the newest post is appearing at the top
+    const postsToInject = [...allPosts].reverse();
+
+    postsToInject.forEach(postData => {
         if (!postData || !postData.code) return;
 
         // Double check duplicate injection by ID

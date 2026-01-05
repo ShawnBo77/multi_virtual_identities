@@ -1,7 +1,8 @@
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
-from ..models import instagram_model
+from ..models import client_model, instagram_model, follow_model
 from ..schemas import instagram_schema
 
 
@@ -185,3 +186,55 @@ def update_user(
 
     # The calling function is responsible for the db.commit().
     return user_to_update
+
+
+def get_unsent_posts(
+    db: Session, client_id: int, usernames: Optional[List[str]] = None, limit: int = 10
+) -> List[instagram_model.InstagramPost]:
+    """
+    Retrieves the latest Instagram posts that have NOT been sent to the specified client yet.
+    """
+
+    client = db.query(client_model.Client).filter(client_model.Client.id == client_id).first()
+    if not client:
+        return []
+
+    query = db.query(instagram_model.InstagramPost)
+
+    query = query.join(
+        instagram_model.InstagramUser, instagram_model.InstagramPost.owner_id == instagram_model.InstagramUser.id
+    )
+
+    query = query.join(
+        follow_model.Following,
+        and_(
+            follow_model.Following.followed_user_id == instagram_model.InstagramUser.id,
+            follow_model.Following.client_id == client.id,
+            follow_model.Following.platform == "instagram",
+            follow_model.Following.is_following,
+        ),
+    )
+
+    if usernames:
+        query = query.filter(instagram_model.InstagramUser.username.in_(usernames))
+
+    query = query.outerjoin(
+        instagram_model.InstagramFeedHistory,
+        and_(
+            instagram_model.InstagramFeedHistory.post_id == instagram_model.InstagramPost.id,
+            instagram_model.InstagramFeedHistory.client_id == client.id,
+        ),
+    )
+    query = query.filter(instagram_model.InstagramFeedHistory.id.is_(None))
+
+    posts = query.order_by(instagram_model.InstagramPost.taken_at.desc()).limit(limit).all()
+
+    # Mark as sent
+    if posts:
+        new_history_records = [
+            instagram_model.InstagramFeedHistory(client_id=client.id, post_id=post.id) for post in posts
+        ]
+        db.add_all(new_history_records)
+        db.commit()
+
+    return posts
