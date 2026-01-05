@@ -1,14 +1,12 @@
-/* =========================================
-   Instagram Native Look-alike CSS
-   Using IG native variables for Auto Dark Mode
-   ========================================= */
-
 /* Post Container */
 .custom-post-wrapper {
     max-width: 470px;
     /* Standard IG feed width */
     width: 100%;
-    margin: 0 auto 12px auto;
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: 0px;
+    margin-bottom: 20px;
     /* Matches feed spacing */
     background-color: var(--ig-primary-background);
     border-bottom: 1px solid var(--ig-separator);
@@ -102,7 +100,11 @@
     align-items: center;
 }
 
-/* Media Section */
+
+/* =========================================
+   Media
+   ========================================= */
+
 .carousel-wrapper {
     width: 470px;
     max-width: 100%;
@@ -214,7 +216,77 @@
     background-color: #ffffff;
 }
 
-/* Footer / Interactions */
+/* =========================================
+   Video & Sound Button
+   ========================================= */
+
+/* Video Container: Ensures absolute positioning for the button works relative to this */
+.video-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background-color: #000;
+}
+
+/* The Video Element */
+.post-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* Ensures video fills the area without distortion */
+    display: block;
+}
+
+/* Sound Toggle Button */
+.sound-btn {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    z-index: 10;
+    
+    /* Appearance: Small black circle */
+    background: rgba(26, 26, 26, 0.8); /* Darker background */
+    color: white;
+    border-radius: 50%;
+    width: 24px;   /* Smaller size */
+    height: 24px;  /* Smaller size */
+    border: none; /* No border */
+    padding: 0;
+    
+    /* Layout & Interaction */
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    
+    /* Remove default button styles */
+    outline: none;
+    box-shadow: 0 0 4px rgba(0,0,0,0.3); /* Subtle shadow for contrast */
+}
+
+.sound-btn svg {
+    display: block;
+    width: 12px;
+    height: 12px;
+}
+
+/* Hover Effect */
+.sound-btn:hover {
+    background: rgba(26, 26, 26, 1.0);
+    transform: scale(1.1);
+}
+
+/* Click Effect */
+.sound-btn:active {
+    transform: scale(0.95);
+}
+
+
+/* =========================================
+   Footer
+   ========================================= */
+
 .custom-post-footer {
     padding: 0;
 }
