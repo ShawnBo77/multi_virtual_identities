@@ -13,11 +13,19 @@ class InstagramUserBase(BaseModel):
     is_verified: bool = False
 
 
+class InstagramUserCreate(InstagramUserBase):
+    pass
+
+
 class InstagramMediaBase(BaseModel):
     pk: str
     media_type: int
     image_local_path: Optional[str] = None
     video_local_path: Optional[str] = None
+
+
+class InstagramMediaCreate(InstagramMediaBase):
+    pass
 
 
 class InstagramPostBase(BaseModel):
@@ -28,6 +36,10 @@ class InstagramPostBase(BaseModel):
     like_count: int
     comment_count: int
     media_type: int
+
+
+class InstagramPostCreate(InstagramPostBase):
+    pass
 
 
 class InstagramUser(InstagramUserBase):
