@@ -4,6 +4,6 @@ __pycache__
 *media
 flows
 *cred*.json
-sql_app.db
+*sql_app.*
 .vscode
 localhost*

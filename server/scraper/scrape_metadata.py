@@ -52,16 +52,15 @@ def inject_cookies_and_login(driver: webdriver.Firefox, url: str, cookies: list)
 
 
 def scroll_down(driver):
-    """向下滾動頁面。"""
     last_height = driver.execute_script("return document.body.scrollHeight")
-    viewport_height = driver.execute_script("return window.innerHeight")  # 視窗高度
+    viewport_height = driver.execute_script("return window.innerHeight")  # Viewport height
     new_height = 0
     while True:
         scroll_increment = viewport_height * random.uniform(0.2, 0.5)
-        current_scroll_y = driver.execute_script("return window.scrollY")  # 目前的位置
+        current_scroll_y = driver.execute_script("return window.scrollY")  # Current scroll position
 
         if current_scroll_y + viewport_height >= last_height - 10:
-            print("  - 已滑頁面底部，未發現新內容。")
+            print("  - Reached the bottom of the page, no new content found.")
             return False
 
         next_scroll_y = min(current_scroll_y + scroll_increment, last_height - viewport_height - 10)
@@ -69,10 +68,10 @@ def scroll_down(driver):
 
         time.sleep(random.uniform(0.4, 0.9))
 
-        # 檢查頁面高度是否有變化
+        # Check if page height has changed
         new_height = driver.execute_script("return document.body.scrollHeight")
         if new_height > last_height:
-            print(f"  - 滾動中偵測到頁面高度增加 (從 {last_height}px -> {new_height}px)，停止滾動。")
+            print(f"  - Page height increased (from {last_height}px -> {new_height}px), stopping scroll.")
             return True
 
 
