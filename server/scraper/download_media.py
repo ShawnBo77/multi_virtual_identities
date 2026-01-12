@@ -119,11 +119,11 @@ def download_file(url: str, destination_path: str, retries: int = 1) -> bool:
     return STATUS_FAILED_TRANSIENT
 
 
-def download_profile_picture(target_username: str, posts_json_dir: str, source_json_file: str) -> bool:
+def download_profile_picture(target_user_pk: str, posts_json_dir: str, source_json_file: str) -> bool:
     """
     Finds and downloads the user's high-definition profile picture.
     """
-    print(f"\n--- Attempting to download profile picture for @{target_username} ---")
+    print(f"\n--- Attempting to download profile picture for ID: {target_user_pk} ---")
     json_filepath = os.path.join(posts_json_dir, source_json_file)
 
     if not os.path.exists(json_filepath):
@@ -140,7 +140,7 @@ def download_profile_picture(target_username: str, posts_json_dir: str, source_j
 
         if hd_pic_url:
             ext = get_file_extension_from_url(hd_pic_url, fallback_ext=".jpg")
-            destination_path = os.path.join(MEDIA_FOLDER_PATH, target_username, f"profile_pic{ext}")
+            destination_path = os.path.join(MEDIA_FOLDER_PATH, target_user_pk, f"profile_pic{ext}")
             print("  - Found profile picture URL.")
             status = download_file(hd_pic_url, destination_path)
             return status == STATUS_SUCCESS
@@ -152,13 +152,13 @@ def download_profile_picture(target_username: str, posts_json_dir: str, source_j
         return False
 
 
-def process_single_post(target_username: str, post_pk: str) -> bool:
+def process_single_post(target_user_pk: str, post_pk: str) -> bool:
     """
     Processes and downloads media for a single post.
     """
     print(f"\n--- Processing post: {post_pk} ---")
 
-    json_filepath = os.path.join(DATA_FOLDER_PATH, target_username, "posts", f"{post_pk}.json")
+    json_filepath = os.path.join(DATA_FOLDER_PATH, target_user_pk, "posts", f"{post_pk}.json")
     if not os.path.exists(json_filepath):
         print(f"  - Error: JSON file not found for post {post_pk} at {json_filepath}")
         return False
@@ -179,7 +179,7 @@ def process_single_post(target_username: str, post_pk: str) -> bool:
         print("  - No downloadable media found for this post.")
         return False
 
-    media_output_dir_base = os.path.join(MEDIA_FOLDER_PATH, target_username)
+    media_output_dir_base = os.path.join(MEDIA_FOLDER_PATH, target_user_pk)
     post_media_dir = os.path.join(media_output_dir_base, post_pk)
     os.makedirs(post_media_dir, exist_ok=True)
     print(f"  - Media will be saved to: {post_media_dir}")
@@ -209,25 +209,25 @@ def process_single_post(target_username: str, post_pk: str) -> bool:
     return any_download_occurred
 
 
-def download_specific_posts_for_user(target_username: str, post_pks: List[str]):
+def download_specific_posts_for_user(target_user_pk: str, post_pks: List[str]):
     """
     Downloads the user's profile picture and media for a specific list of posts.
     """
-    print(f"--- Downloading profile picture and {len(post_pks)} specific post(s) for @{target_username} ---")
+    print(f"--- Downloading profile picture and {len(post_pks)} specific post(s) for {target_user_pk} ---")
 
     if not post_pks:
         print("Warning: No post PKs provided to download.")
         return
 
-    posts_json_dir = os.path.join(DATA_FOLDER_PATH, target_username, "posts")
+    posts_json_dir = os.path.join(DATA_FOLDER_PATH, target_user_pk, "posts")
     if not os.path.isdir(posts_json_dir):
-        print(f"Error: Could not find post directory for @{target_username}: {posts_json_dir}")
+        print(f"Error: Could not find post directory for {target_user_pk}: {posts_json_dir}")
         return
 
-    os.makedirs(os.path.join(MEDIA_FOLDER_PATH, target_username), exist_ok=True)
+    os.makedirs(os.path.join(MEDIA_FOLDER_PATH, target_user_pk), exist_ok=True)
 
     source_json_for_pic = f"{post_pks[0]}.json"
-    any_download_occurred = download_profile_picture(target_username, posts_json_dir, source_json_for_pic)
+    any_download_occurred = download_profile_picture(target_user_pk, posts_json_dir, source_json_for_pic)
 
     for i, post_pk in enumerate(post_pks):
         if any_download_occurred:
@@ -235,31 +235,31 @@ def download_specific_posts_for_user(target_username: str, post_pks: List[str]):
             print(f"\n--- Delaying for {delay:.2f}s before processing post... ({i + 1}/{len(post_pks)}) ---")
             time.sleep(delay)
 
-        any_download_occurred = process_single_post(target_username, post_pk)
+        any_download_occurred = process_single_post(target_user_pk, post_pk)
 
     print("\n--- Specific post download tasks are complete. ---")
 
 
-def download_media_for_user(target_username: str):
+def download_media_for_user(target_user_pk: str):
     """
     Downloads the user's profile picture and all their media from available JSON files.
     """
-    print(f"\n--- Starting full media download for @{target_username} ---")
+    print(f"\n--- Starting full media download for {target_user_pk} ---")
 
-    posts_json_dir = os.path.join(DATA_FOLDER_PATH, target_username, "posts")
+    posts_json_dir = os.path.join(DATA_FOLDER_PATH, target_user_pk, "posts")
     if not os.path.isdir(posts_json_dir):
-        print(f"Error: Could not find post directory for @{target_username}: {posts_json_dir}")
+        print(f"Error: Could not find post directory for @{target_user_pk}: {posts_json_dir}")
         print("Please run scrape_metadata.py first to fetch the data.")
         return
 
-    os.makedirs(os.path.join(MEDIA_FOLDER_PATH, target_username), exist_ok=True)
+    os.makedirs(os.path.join(MEDIA_FOLDER_PATH, target_user_pk), exist_ok=True)
 
     json_files = [f for f in os.listdir(posts_json_dir) if f.endswith(".json")]
     if not json_files:
         print(f"No .json files found in {posts_json_dir}.")
         return
 
-    any_download_occurred = download_profile_picture(target_username, posts_json_dir, json_files[0])
+    any_download_occurred = download_profile_picture(target_user_pk, posts_json_dir, json_files[0])
 
     print(f"\nFound {len(json_files)} post JSON files. Starting to process posts...")
 
@@ -271,7 +271,7 @@ def download_media_for_user(target_username: str):
             time.sleep(delay)
 
         post_pk = os.path.splitext(filename)[0]
-        any_download_occurred = process_single_post(target_username, post_pk)
+        any_download_occurred = process_single_post(target_user_pk, post_pk)
 
     print("\n--- All media download tasks are complete. ---")
 
@@ -283,9 +283,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Download media and profile picture from saved Instagram JSON files. Can download all media for a user or specific posts."
     )
-    parser.add_argument(
-        "username", type=str, help="Target Instagram username (must match the name of the scraped folder)"
-    )
+    parser.add_argument("target_user_pk", type=str, help="Target User PK (ID) - must match the folder name in data/")
     parser.add_argument(
         "-p",
         "--posts",
@@ -295,9 +293,9 @@ def main():
     args = parser.parse_args()
 
     if args.posts:
-        download_specific_posts_for_user(args.username, args.posts)
+        download_specific_posts_for_user(args.target_user_pk, args.posts)
     else:
-        download_media_for_user(args.username)
+        download_media_for_user(args.target_user_pk)
 
 
 if __name__ == "__main__":

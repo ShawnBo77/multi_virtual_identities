@@ -2,6 +2,22 @@
 
 This is a backend server built with FastAPI, designed to support a browser extension. It acts as a centralized database for caching Instagram posts and manages an anonymous user following system.
 
+## 📦 Installation
+
+Install all required packages:
+
+```bash
+pip install -r requirements.txt
+```
+
+**Dependency Issues**:
+
+```bash
+pip freeze > installation.txt
+pip uninstall -r installation.txt -y
+pip install -r requirements.txt
+```
+
 ## ⚡ Start Server
 
 Use `uvicorn` to start the development server with live reloading:

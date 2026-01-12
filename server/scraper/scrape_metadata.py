@@ -15,7 +15,6 @@ from selenium.common.exceptions import TimeoutException
 
 SERVER_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_FOLDER_PATH = os.path.join(SERVER_ROOT, "data")
-DEFAULT_CREDENTIALS_FILE = os.path.join(SERVER_ROOT, "scraper/ins_cred_se_manual.json")
 
 
 def load_selenium_credentials(filepath):
@@ -81,9 +80,18 @@ def save_posts_as_individual_files(posts_data: list, target_username: str):
         print("No post data provided to save.")
         return
 
-    print("\n--- Saving posts to individual files ---")
+    user_pk = None
+    first_post = posts_data[0]
+    
+    if "user" in first_post and "pk" in first_post["user"]:
+        user_pk = first_post["user"]["pk"]
+    elif "owner" in first_post and "pk" in first_post["owner"]:
+        user_pk = first_post["owner"]["pk"]
 
-    posts_dir = os.path.join(DATA_FOLDER_PATH, target_username, "posts")
+    target_folder_name = user_pk if user_pk else target_username
+    print(f"\n--- Saving posts to individual files (Folder: {target_folder_name}) ---")
+
+    posts_dir = os.path.join(DATA_FOLDER_PATH, target_folder_name, "posts")
     os.makedirs(posts_dir, exist_ok=True)
     print(f"  - Posts will be saved in: {posts_dir}")
 
@@ -113,7 +121,7 @@ def scrape_user_posts(target_username: str, num_posts_to_fetch: int, credentials
     """
     print(f"--- Starting Metadata Scraping for @{target_username} ---")
 
-    final_credentials_path = credentials_path or DEFAULT_CREDENTIALS_FILE
+    final_credentials_path = credentials_path
     credentials = load_selenium_credentials(final_credentials_path)
     if not credentials:
         return
@@ -230,8 +238,8 @@ if __name__ == "__main__":
         "-c",
         "--credentials",
         type=str,
-        default=None,
-        help="Path to the selenium credentials JSON file (e.g., 'account_A.json'). Uses default if not provided.",
+        required=True,
+        help="Path to the selenium credentials JSON file (e.g., 'ins_cred_user.json').",
     )
     args = parser.parse_args()
 

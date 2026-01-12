@@ -1,6 +1,7 @@
 import json
 import time
 import random
+import getpass
 
 from selenium import webdriver
 from selenium.webdriver.firefox.service import Service as FirefoxService
@@ -79,7 +80,7 @@ def extract_cookies(driver):
     credentials_data = {
         "user_agent": user_agent,
         "cookie_string": "; ".join([f"{c['name']}={c['value']}" for c in cookies_for_selenium]),
-        "cookies_list": cookies_for_selenium,
+        "cookies_for_selenium": cookies_for_selenium,
     }
 
     return credentials_data
@@ -214,7 +215,7 @@ def login_and_get_cookies(username, password, headless=False):
 
 
 if __name__ == "__main__":
-    my_user = "username"
-    my_pass = "password"
+    my_user = input("Username: ")
+    my_pass = getpass.getpass("Password: ")
 
     login_and_get_cookies(my_user, my_pass)
