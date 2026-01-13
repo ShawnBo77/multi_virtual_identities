@@ -6,16 +6,16 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Optional
 
 # --- Setup paths and imports ---
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 from app.database import SessionLocal, engine
 from app.services import instagram_service
 from app.models import instagram_model, client_model, follow_model
 from app.schemas import instagram_schema
 
 # --- Path Configuration ---
-SERVER_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DATA_FOLDER_PATH = os.path.join(SERVER_ROOT, "data")
-MEDIA_FOLDER_PATH = os.path.join(SERVER_ROOT, "media")
+SERVER_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+DATA_FOLDER_PATH = os.path.join(SERVER_ROOT, "data", "instagram")
+MEDIA_FOLDER_PATH = os.path.join(SERVER_ROOT, "media", "instagram")
 
 
 def initialize_database():
@@ -70,7 +70,7 @@ def find_local_profile_pic(user_pk: str) -> Optional[str]:
         found_entry = next(entry for entry in iterator if entry.name.startswith("profile_pic") and entry.is_file())
 
         if found_entry:
-            return os.path.join("media", user_pk, found_entry.name).replace("\\", "/")
+            return os.path.join("media", "instagram", user_pk, found_entry.name).replace("\\", "/")
 
     except StopIteration:
         pass
@@ -125,19 +125,19 @@ def find_local_media_for_post(user_pk: str, post_data: Dict) -> List[Dict]:
             # Find the video
             video_filename = next((f for f in files_on_disk if item_pk in f and "_cover" not in f), None)
             if video_filename:
-                video_local_path = os.path.join("media", user_pk, post_pk, video_filename)
+                video_local_path = os.path.join("media", "instagram", user_pk, post_pk, video_filename)
 
             # Find the cover image
             cover_filename = next((f for f in files_on_disk if item_pk in f and "_cover" in f), None)
             if cover_filename:
-                image_local_path = os.path.join("media", user_pk, post_pk, cover_filename)
+                image_local_path = os.path.join("media", "instagram", user_pk, post_pk, cover_filename)
 
         # image
         elif item_media_type == 1:
             # Find the image
             image_filename = next((f for f in files_on_disk if item_pk in f), None)
             if image_filename:
-                image_local_path = os.path.join("media", user_pk, post_pk, image_filename)
+                image_local_path = os.path.join("media", "instagram", user_pk, post_pk, image_filename)
 
         if image_local_path or video_local_path:
             db_ready_media_list.append(

@@ -9,9 +9,9 @@ import mimetypes
 from typing import List, Dict
 
 # --- Global Path Settings ---
-SERVER_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DATA_FOLDER_PATH = os.path.join(SERVER_ROOT, "data")
-MEDIA_FOLDER_PATH = os.path.join(SERVER_ROOT, "media")
+SERVER_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+DATA_FOLDER_PATH = os.path.join(SERVER_ROOT, "data", "instagram")
+MEDIA_FOLDER_PATH = os.path.join(SERVER_ROOT, "media", "instagram")
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0"
 HEADERS = {"User-Agent": USER_AGENT}

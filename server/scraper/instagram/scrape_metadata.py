@@ -3,6 +3,7 @@ import os
 import time
 import random
 import argparse
+from typing import List
 
 from seleniumwire import webdriver
 from seleniumwire.utils import decode
@@ -13,8 +14,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 
-SERVER_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DATA_FOLDER_PATH = os.path.join(SERVER_ROOT, "data")
+SERVER_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+DATA_FOLDER_PATH = os.path.join(SERVER_ROOT, "data", "instagram")
 
 
 def load_selenium_credentials(filepath):
@@ -82,7 +83,7 @@ def save_posts_as_individual_files(posts_data: list, target_username: str):
 
     user_pk = None
     first_post = posts_data[0]
-    
+
     if "user" in first_post and "pk" in first_post["user"]:
         user_pk = first_post["user"]["pk"]
     elif "owner" in first_post and "pk" in first_post["owner"]:
@@ -114,43 +115,23 @@ def save_posts_as_individual_files(posts_data: list, target_username: str):
     print(f"--- Saved {new_files_saved} new post files. ---")
 
 
-def scrape_user_posts(target_username: str, num_posts_to_fetch: int, credentials_path: str = None):
+def scrape_single_user(driver, target_username: str, num_posts_to_fetch: int):
     """
-    Main function to scrape post metadata for a user using Selenium-Wire.
-    This function contains your original, proven logic.
+    Scrapes a single user using the EXISTING driver instance.
     """
-    print(f"--- Starting Metadata Scraping for @{target_username} ---")
 
-    final_credentials_path = credentials_path
-    credentials = load_selenium_credentials(final_credentials_path)
-    if not credentials:
-        return
+    print(f"\n=== Starting Scrape for User: @{target_username} ===")
 
-    print(f"--- Preparing Selenium-Wire (Firefox) to scrape @{target_username} posts ---")
+    del driver.requests
 
-    service = FirefoxService(GeckoDriverManager().install())
-    options = webdriver.FirefoxOptions()
-    # options.add_argument("--headless")
-    options.set_preference("general.useragent.override", credentials["user_agent"])
-
-    driver = webdriver.Firefox(service=service, options=options)
-    TARGET_URL = "https://www.instagram.com/"
-
-    if not inject_cookies_and_login(driver, TARGET_URL, credentials.get("cookies_for_selenium", [])):
-        print("  - Login failed, aborting scrape.")
-        driver.quit()
-        return
-
-    time.sleep(random.uniform(2, 5))
-    profile_url = f"{TARGET_URL}{target_username}/"
+    profile_url = f"https://www.instagram.com/{target_username}/"
     driver.get(profile_url)
 
     try:
         WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//header")))
-        print(f"  - Navigated to target page and confirmed load: {profile_url}")
+        print(f"  - Profile page loaded: {target_username}")
     except TimeoutException:
         print("  - Error: Timed out waiting for page to load. User may not exist or page structure changed.")
-        driver.quit()
         return
 
     time.sleep(random.uniform(3, 5))
@@ -169,7 +150,7 @@ def scrape_user_posts(target_username: str, num_posts_to_fetch: int, credentials
                 reached_bottom = True
 
         scroll_pause_time = random.uniform(3, 5.5)
-        print(f"  - Pausing for {scroll_pause_time:.2f} seconds to let content load...")
+        # print(f"  - Pausing for {scroll_pause_time:.2f} seconds to let content load...")
         time.sleep(scroll_pause_time)
 
         try:
@@ -219,20 +200,65 @@ def scrape_user_posts(target_username: str, num_posts_to_fetch: int, credentials
 
         scroll_attempts += 1
 
-    driver.quit()
-
     final_posts = all_posts
     print(f"\n--- Scraping finished! Successfully collected metadata for {len(final_posts)} posts. ---")
 
     # Save the collected posts to files
     save_posts_as_individual_files(final_posts, target_username)
 
-    print("\n--- Metadata scraping process complete. ---")
+
+def run_batch_scrape(usernames: List[str], num_posts: int, credentials_path: str):
+    """
+    Main controller for batch scraping.
+    """
+    credentials = load_selenium_credentials(credentials_path)
+    if not credentials:
+        return
+
+    print("--- Initializing Selenium WebDriver ---")
+    service = FirefoxService(GeckoDriverManager().install())
+    options = webdriver.FirefoxOptions()
+    # options.add_argument("--headless")
+    options.set_preference("general.useragent.override", credentials["user_agent"])
+
+    driver = webdriver.Firefox(service=service, options=options)
+
+    try:
+        if not inject_cookies_and_login(
+            driver, "https://www.instagram.com/", credentials.get("cookies_for_selenium", [])
+        ):
+            print("Login failed. Aborting.")
+            return
+
+        total_users = len(usernames)
+        for i, username in enumerate(usernames):
+            username = username.strip()
+            if not username:
+                continue
+
+            print(f"\n[{i + 1}/{total_users}] Processing user: {username}")
+
+            try:
+                scrape_single_user(driver, username, num_posts)
+            except Exception as e:
+                print(f"  - ✗ CRITICAL ERROR scraping {username}: {e}")
+
+            if i < total_users - 1:
+                delay = random.uniform(10, 20)
+                print(f"\n--- Cooling down for {delay:.1f} seconds before next user... ---")
+                time.sleep(delay)
+
+    finally:
+        print("\n--- Batch scraping finished. Closing browser. ---")
+        driver.quit()
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Scrape Instagram posts.")
-    parser.add_argument("username", type=str, help="Target Instagram username")
+    parser = argparse.ArgumentParser(description="Scrape Instagram posts for multiple users.")
+
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("-u", "--usernames", nargs="+", help="List of Instagram usernames (separated by space)")
+    group.add_argument("-f", "--file", type=str, help="Path to a text file containing usernames (one per line)")
     parser.add_argument("-n", "--num-posts", type=int, default=5, help="Number of posts to fetch")
     parser.add_argument(
         "-c",
@@ -243,7 +269,22 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    target_users = []
+    if args.usernames:
+        target_users = args.usernames
+    elif args.file:
+        if os.path.exists(args.file):
+            with open(args.file, "r", encoding="utf-8") as f:
+                target_users = [line.strip() for line in f if line.strip()]
+        else:
+            print(f"Error: User list file '{args.file}' not found.")
+            exit(1)
+
+    print(f"Targets loaded: {len(target_users)} users.")
+
     try:
-        scrape_user_posts(args.username, args.num_posts, args.credentials)
+        run_batch_scrape(target_users, args.num_posts, args.credentials)
+    except KeyboardInterrupt:
+        print("\nProcess interrupted by user.")
     except Exception as e:
         print(f"\nAn unexpected error occurred: {e}")
