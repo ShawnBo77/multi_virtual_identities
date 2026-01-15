@@ -1,4 +1,16 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, UniqueConstraint
+import enum
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Text,
+    DateTime,
+    ForeignKey,
+    Boolean,
+    UniqueConstraint,
+    Enum as SAEnum,
+    JSON,
+)
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from ..database import Base
@@ -18,6 +30,7 @@ class InstagramUser(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     posts = relationship("InstagramPost", back_populates="owner")
+    scrape_logs = relationship("InstagramScrapeLog", back_populates="target_user", cascade="all, delete-orphan")
 
 
 class InstagramPost(Base):
@@ -64,3 +77,34 @@ class InstagramFeedHistory(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     __table_args__ = (UniqueConstraint("client_id", "post_id", name="_client_ig_post_uc"),)
+
+
+class ScrapeStatus(enum.Enum):
+    SUCCESS = "success"
+    FAILED = "failed"
+    NO_PK_FOUND = "no_pk_found"
+    LOGIN_FAILED = "login_failed"
+
+
+class InstagramCredential(Base):
+    __tablename__ = "instagram_credentials"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True, nullable=False)
+    cookies = Column(JSON, nullable=True)  # Store Selenium cookies as JSON
+    user_agent = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)  # False if account is banned/suspended
+    last_used_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class InstagramScrapeLog(Base):
+    __tablename__ = "instagram_scrape_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    target_user_id = Column(Integer, ForeignKey("instagram_users.id"), nullable=False)
+    credential_id = Column(Integer, ForeignKey("instagram_credentials.id"), nullable=False)
+    status = Column(SAEnum(ScrapeStatus), default=ScrapeStatus.SUCCESS, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    target_user = relationship("InstagramUser", back_populates="scrape_logs")
+    credential = relationship("InstagramCredential")

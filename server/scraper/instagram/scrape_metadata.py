@@ -3,7 +3,7 @@ import os
 import time
 import random
 import argparse
-from typing import List
+from typing import List, Dict, Optional
 
 from seleniumwire import webdriver
 from seleniumwire.utils import decode
@@ -34,7 +34,7 @@ def load_selenium_credentials(filepath):
         return None
 
 
-def inject_cookies_and_login(driver: webdriver.Firefox, url: str, cookies: list) -> bool:
+def inject_cookies(driver: webdriver.Firefox, url: str, cookies: list) -> bool:
     """Injects cookies into the WebDriver."""
     try:
         driver.get(url)
@@ -71,7 +71,7 @@ def scroll_down(driver):
         # Check if page height has changed
         new_height = driver.execute_script("return document.body.scrollHeight")
         if new_height > last_height:
-            print(f"  - Page height increased (from {last_height}px -> {new_height}px), stopping scroll.")
+            # print(f"  - Page height increased (from {last_height}px -> {new_height}px), stopping scroll.")
             return True
 
 
@@ -115,7 +115,7 @@ def save_posts_as_individual_files(posts_data: list, target_username: str):
     print(f"--- Saved {new_files_saved} new post files. ---")
 
 
-def scrape_single_user(driver, target_username: str, num_posts_to_fetch: int):
+def scrape_single_user(driver, target_username: str, num_posts_to_fetch: int) -> Optional[Dict]:
     """
     Scrapes a single user using the EXISTING driver instance.
     """
@@ -129,7 +129,7 @@ def scrape_single_user(driver, target_username: str, num_posts_to_fetch: int):
 
     try:
         WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//header")))
-        print(f"  - Profile page loaded: {target_username}")
+        # print(f"  - Profile page loaded: {target_username}")
     except TimeoutException:
         print("  - Error: Timed out waiting for page to load. User may not exist or page structure changed.")
         return
@@ -142,8 +142,9 @@ def scrape_single_user(driver, target_username: str, num_posts_to_fetch: int):
     scroll_attempts = 0
 
     reached_bottom = False
+    scraped_user_info = None
     while len(all_posts) < num_posts_to_fetch and not reached_bottom:
-        print(f"\nScroll attempt #{scroll_attempts + 1} | Posts collected: {len(all_posts)}/{num_posts_to_fetch}")
+        # print(f"\nScroll attempt #{scroll_attempts + 1} | Posts collected: {len(all_posts)}/{num_posts_to_fetch}")
 
         if scroll_attempts > 0:
             if not scroll_down(driver):
@@ -187,12 +188,16 @@ def scrape_single_user(driver, target_username: str, num_posts_to_fetch: int):
                         processed_post_pks.add(post_pk)
                         new_posts_in_loop += 1
 
-            print(
-                f"  - Parsed requests, found {new_posts_in_loop} new posts in this loop. Total unique posts: {len(all_posts)}."
-            )
+                        if not scraped_user_info:
+                            user_data = node.get("user") or node.get("owner")
+                            if user_data and user_data.get("pk"):
+                                scraped_user_info = user_data
+            # print(
+            #     f"  - Parsed requests, found {new_posts_in_loop} new posts in this loop. Total unique posts: {len(all_posts)}."
+            # )
 
             if len(all_posts) >= num_posts_to_fetch:
-                print("  - Target number of posts reached.")
+                # print("  - Target number of posts reached.")
                 break
 
         except Exception as e:
@@ -201,10 +206,11 @@ def scrape_single_user(driver, target_username: str, num_posts_to_fetch: int):
         scroll_attempts += 1
 
     final_posts = all_posts
-    print(f"\n--- Scraping finished! Successfully collected metadata for {len(final_posts)} posts. ---")
+    print(f"--- Scraping finished! Successfully collected metadata for {len(final_posts)} posts. ---")
 
     # Save the collected posts to files
     save_posts_as_individual_files(final_posts, target_username)
+    return scraped_user_info
 
 
 def run_batch_scrape(usernames: List[str], num_posts: int, credentials_path: str):
@@ -224,9 +230,7 @@ def run_batch_scrape(usernames: List[str], num_posts: int, credentials_path: str
     driver = webdriver.Firefox(service=service, options=options)
 
     try:
-        if not inject_cookies_and_login(
-            driver, "https://www.instagram.com/", credentials.get("cookies_for_selenium", [])
-        ):
+        if not inject_cookies(driver, "https://www.instagram.com/", credentials.get("cookies_for_selenium", [])):
             print("Login failed. Aborting.")
             return
 

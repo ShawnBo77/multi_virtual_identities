@@ -1,16 +1,29 @@
 import os
+import contextlib
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from .database import engine
 from .models import client_model, follow_model, instagram_model
 from .routers import client_router, follow_router, instagram_router
+from .services.instagram_scraper import instagram_scraper 
 
 # Create all tables
 client_model.Base.metadata.create_all(bind=engine)
 follow_model.Base.metadata.create_all(bind=engine)
 instagram_model.Base.metadata.create_all(bind=engine)
 
+# @contextlib.asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     print("--- Server Starting: Launching Background Scraper ---")
+#     instagram_scraper.start()
+    
+#     yield
+    
+#     print("--- Server Stopping: Shutting down Scraper ---")
+#     instagram_scraper.stop()
+
+# app = FastAPI(lifespan=lifespan)
 app = FastAPI()
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))

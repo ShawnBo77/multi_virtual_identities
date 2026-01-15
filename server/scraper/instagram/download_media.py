@@ -88,18 +88,25 @@ def download_file(url: str, destination_path: str, retries: int = 1) -> bool:
     Downloads a file from a given URL and saves it to a destination path.
     """
     if os.path.exists(destination_path):
-        print(f"    - File already exists, skipping: {os.path.basename(destination_path)}")
-        return STATUS_SKIPPED
+        if os.path.getsize(destination_path) == 0:
+            os.remove(destination_path)
+        else:
+            # print(f"    - File already exists, skipping: {os.path.basename(destination_path)}")
+            return STATUS_SKIPPED
+
+    temp_path = destination_path + ".tmp"
 
     for attempt in range(retries):
         try:
             print(f"    - Downloading: {os.path.basename(destination_path)} (Attempt {attempt + 1}/{retries})...")
             with requests.get(url, stream=True, headers=HEADERS, timeout=20) as r:
                 r.raise_for_status()
-                with open(destination_path, "wb") as f:
+                with open(temp_path, "wb") as f:
                     shutil.copyfileobj(r.raw, f)
-                print("    - ✓ Download successful")
-                return STATUS_SUCCESS
+
+            os.rename(temp_path, destination_path)
+            print("    - ✓ Download successful")
+            return STATUS_SUCCESS
 
         except requests.exceptions.HTTPError as e:
             print(f"    - ✗ HTTP Error (e.g., 403/404): {e}. URL is likely expired.")
@@ -123,7 +130,7 @@ def download_profile_picture(target_user_pk: str, posts_json_dir: str, source_js
     """
     Finds and downloads the user's high-definition profile picture.
     """
-    print(f"\n--- Attempting to download profile picture for ID: {target_user_pk} ---")
+    # print(f"--- Attempting to download profile picture for ID: {target_user_pk} ---")
     json_filepath = os.path.join(posts_json_dir, source_json_file)
 
     if not os.path.exists(json_filepath):
@@ -141,7 +148,7 @@ def download_profile_picture(target_user_pk: str, posts_json_dir: str, source_js
         if hd_pic_url:
             ext = get_file_extension_from_url(hd_pic_url, fallback_ext=".jpg")
             destination_path = os.path.join(MEDIA_FOLDER_PATH, target_user_pk, f"profile_pic{ext}")
-            print("  - Found profile picture URL.")
+            # print("  - Found profile picture URL.")
             status = download_file(hd_pic_url, destination_path)
             return status == STATUS_SUCCESS
         else:
@@ -156,7 +163,7 @@ def process_single_post(target_user_pk: str, post_pk: str) -> bool:
     """
     Processes and downloads media for a single post.
     """
-    print(f"\n--- Processing post: {post_pk} ---")
+    print(f"--- Processing post: {post_pk} ---")
 
     json_filepath = os.path.join(DATA_FOLDER_PATH, target_user_pk, "posts", f"{post_pk}.json")
     if not os.path.exists(json_filepath):
@@ -182,7 +189,7 @@ def process_single_post(target_user_pk: str, post_pk: str) -> bool:
     media_output_dir_base = os.path.join(MEDIA_FOLDER_PATH, target_user_pk)
     post_media_dir = os.path.join(media_output_dir_base, post_pk)
     os.makedirs(post_media_dir, exist_ok=True)
-    print(f"  - Media will be saved to: {post_media_dir}")
+    # print(f"  - Media will be saved to: {post_media_dir}")
 
     consecutive_failures = 0
     for j, media_item in enumerate(media_to_download):
@@ -202,7 +209,7 @@ def process_single_post(target_user_pk: str, post_pk: str) -> bool:
                 return any_download_occurred
 
         if j < len(media_to_download) - 1:
-            short_delay = random.uniform(0.8, 2.2)
+            short_delay = random.uniform(1, 5)
             # print(f"    - Delaying for {short_delay:.2f}s before next media item...")
             time.sleep(short_delay)
 
@@ -261,12 +268,12 @@ def download_media_for_user(target_user_pk: str):
 
     any_download_occurred = download_profile_picture(target_user_pk, posts_json_dir, json_files[0])
 
-    print(f"\nFound {len(json_files)} post JSON files. Starting to process posts...")
+    print(f"Found {len(json_files)} post JSON files. Starting to process posts...")
 
     total_posts = len(json_files)
     for i, filename in enumerate(sorted(json_files)):
         if any_download_occurred:
-            delay = random.uniform(2.5, 5.0)
+            delay = random.uniform(10, 20)
             print(f"\n--- Delaying for {delay:.2f}s before next post... ({i + 1}/{total_posts}) ---")
             time.sleep(delay)
 
