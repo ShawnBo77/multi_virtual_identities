@@ -15,7 +15,7 @@ from webdriver_manager.firefox import GeckoDriverManager
 
 from scraper.instagram.scrape_metadata import scrape_single_user, inject_cookies
 from scraper.instagram.download_media import download_media_for_user
-from scraper.instagram.import_data_to_db import import_data_for_specific_user, find_local_profile_pic
+from scraper.instagram.import_data_to_db import import_data_for_specific_user
 
 FAIL_KEYWORDS = ["login", "challenge", "two_factor", "checkpoint", "suspend", "consent", "contact", "reset"]
 
