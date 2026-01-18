@@ -533,169 +533,100 @@ async function injectPost() {
 // Anonymous Follow Button
 // ==========================================
 
-let lastProcessedUrl = null;
+function showContextMenu(x, y, username) {
+    // Remove existing menu
+    const existingMenu = document.getElementById('anon-context-menu');
+    if (existingMenu) existingMenu.remove();
 
-function createAnonymousFollowButton(username) {
-
+    // Check current follow status
     const currentList = getEffectiveFollowList();
-    const isAlreadyFollowing = currentList.includes(username);
+    const isAnonFollowing = currentList.includes(username);
 
-    const button = document.createElement('div');
-    button.id = 'anonymous-follow-btn';
-    button.className = 'anonymous-follow-btn';
-    button.setAttribute('role', 'button');
+    // Create menu DOM
+    const menu = document.createElement('div');
+    menu.id = 'anon-context-menu';
+    menu.style.top = `${y}px`;
+    menu.style.left = `${x}px`;
 
-    const updateButtonState = (isFollowing) => {
-        if (isFollowing) {
-            button.textContent = '✓ Anon Following';
-            button.classList.add('following');
+    const menuItem = document.createElement('div');
+    menuItem.className = `anon-menu-item ${isAnonFollowing ? 'action-unfollow' : 'action-follow'}`;
+    menuItem.innerHTML = isAnonFollowing 
+        ? '<span>Unfollow (Anonymous)</span>' 
+        : '<span>Follow Anonymously</span>';
+
+    // Handle click action
+    menuItem.onclick = async (e) => {
+        e.stopPropagation();
+        if (isAnonFollowing) {
+            await recordAction('UNFOLLOW', username);
+            console.log(`[IG Injector] Unfollowed ${username} anonymously.`);
         } else {
-            button.textContent = 'Anon Follow';
-            button.classList.remove('following');
+            await recordAction('FOLLOW', username);
+            console.log(`[IG Injector] Followed ${username} anonymously.`);
         }
+        menu.remove();
     };
 
-    updateButtonState(isAlreadyFollowing);
+    menu.appendChild(menuItem);
+    document.body.appendChild(menu);
 
-    button.addEventListener('click', async (e) => {
+    // Close menu on outside click
+    setTimeout(() => {
+        const closeMenu = (e) => {
+            if (!menu.contains(e.target)) {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+                document.removeEventListener('contextmenu', closeMenu);
+            }
+        };
+        document.addEventListener('click', closeMenu);
+        document.addEventListener('contextmenu', closeMenu);
+    }, 10);
+}
+
+// Global right-click event listener
+document.addEventListener('contextmenu', (e) => {
+    // Check if on a profile page
+    const pathParts = window.location.pathname.split('/').filter(p => p);
+    if (pathParts.length === 0 || ['p', 'explore', 'direct', 'reels', 'stories'].includes(pathParts[0])) {
+        return;
+    }
+    const currentUsername = pathParts[0];
+
+    // Check if target is a button
+    const targetBtn = e.target.closest('button, a, div[role="button"]');
+
+    if (!targetBtn) return;
+
+    // Ensure button is in the header
+    if (!targetBtn.closest('header')) return;
+
+    // Define keywords for Follow buttons
+    const btnText = targetBtn.innerText || "";
+    const followKeywords = ['Follow', 'Following', 'Requested', '追蹤', '已追蹤', '追蹤中', '已送出請求'];
+    
+    // Check if button text matches keywords
+    const isTargetButton = followKeywords.some(kw => btnText.includes(kw));
+
+    if (isTargetButton) {
+        // Prevent default browser menu
         e.preventDefault();
         e.stopPropagation();
 
-        // Prevent rapid clicking
-        if (button.dataset.processing === "true") return;
-        button.dataset.processing = "true";
-        setTimeout(() => button.dataset.processing = "false", 300);
-
-        const currentIsFollowing = button.classList.contains('following');
-
-        if (currentIsFollowing) {
-            updateButtonState(false);
-            await recordAction('UNFOLLOW', username);
-        } else {
-            updateButtonState(true);
-            await recordAction('FOLLOW', username);
-        }
-    });
-
-    return button;
-}
-
-async function injectButtonOnProfilePage() {
-    const currentUrl = window.location.pathname;
-
-    // Avoid duplicate execution if already injected on this page
-    if (lastProcessedUrl === currentUrl && document.getElementById('anonymous-follow-btn')) return;
-
-    const pathParts = currentUrl.split('/').filter(p => p);
-    if (pathParts.length === 0 || ['explore', 'direct', 'reels', 'stories'].includes(pathParts[0])) {
-        lastProcessedUrl = currentUrl;
-        return;
+        console.log(`[IG Injector] Right-click intercepted on button: "${btnText.replace(/\n/g, '')}" for user: ${currentUsername}`);
+        
+        // Show custom menu
+        showContextMenu(e.pageX, e.pageY, currentUsername);
     }
-    const username = pathParts[0];
+}, true); // Capture mode
 
-    const header = document.querySelector('main header');
-    if (!header) return;
-
-    // Find the "Follow" related button to serve as an anchor
-    let buttonContainer = null;
-    let followBtnWrapper = null; // Wrapper used to locate the follow button
-
-    const followKeywords = ['追蹤', '已追蹤', '追蹤中', 'Follow', 'Following', 'Requested', '关注', '已关注', '关注中'];
-
-    const buttons = header.querySelectorAll('button, a[role="link"]');
-
-    for (let btn of buttons) {
-        const text = btn.innerText;
-        if (text && followKeywords.some(kw => text === kw || text.startsWith(kw + '\n'))) {
-            const parent = btn.parentElement;
-            const grandParent = parent.parentElement;
-            const greatGrandParent = grandParent?.parentElement;
-
-            // Determine Flex Container based on structure depth
-            if (parent.childElementCount > 1) {
-                buttonContainer = parent;
-                followBtnWrapper = btn;
-            } else if (grandParent && grandParent.childElementCount > 1) {
-                buttonContainer = grandParent;
-                followBtnWrapper = parent;
-            } else if (greatGrandParent && greatGrandParent.childElementCount > 1) {
-                buttonContainer = greatGrandParent;
-                followBtnWrapper = grandParent;
-            } else if (grandParent) {
-                buttonContainer = grandParent;
-                followBtnWrapper = parent;
-            }
-
-            if (buttonContainer) break;
-        }
-    }
-
-    if (!buttonContainer || !followBtnWrapper) {
-        return;
-    }
-
-    // Double check if already injected
-    if (buttonContainer.querySelector('#anonymous-follow-btn')) {
-        lastProcessedUrl = currentUrl;
-        return;
-    }
-
-    console.log(`[IG Injector] Profile page for @${username} detected. Injecting button next to Follow...`);
-
-    const ourButton = createAnonymousFollowButton(username);
-
-    // Insert the button after the "Follow" button
-    ourButton.style.marginLeft = '0px';
-    ourButton.style.marginRight = '0px';
-    buttonContainer.insertBefore(ourButton, followBtnWrapper.nextSibling);
-
-    lastProcessedUrl = currentUrl;
-}
-
+// Listen for storage changes
 chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'local') {
-        let stateChanged = false;
-
-        // Update local variables
-        if (changes.serverCache) {
-            serverCache = changes.serverCache.newValue || {};
-            stateChanged = true;
-        }
-        if (changes.pendingChanges) {
-            pendingChanges = changes.pendingChanges.newValue || {};
-            stateChanged = true;
-        }
-
-        // Re-render button if state changed
-        if (stateChanged) {
-            updateCurrentPageButtonState();
-        }
+        if (changes.serverCache) serverCache = changes.serverCache.newValue || {};
+        if (changes.pendingChanges) pendingChanges = changes.pendingChanges.newValue || {};
     }
 });
-
-// Updates button appearance without a page reload
-function updateCurrentPageButtonState() {
-    const btn = document.getElementById('anonymous-follow-btn');
-    if (!btn) return;
-
-    // Extract username from current URL
-    const pathParts = window.location.pathname.split('/').filter(p => p);
-    if (pathParts.length === 0) return;
-    const username = pathParts[0];
-
-    // Recalculate status
-    const currentList = getEffectiveFollowList();
-    const isFollowing = currentList.includes(username);
-
-    // Update DOM
-    if (isFollowing) {
-        btn.textContent = '✓ Anon Following';
-        btn.classList.add('following');
-    } else {
-        btn.textContent = 'Anonymous Follow';
-        btn.classList.remove('following');
-    }
-}
 
 // ==========================================
 // Initialization
@@ -718,13 +649,6 @@ async function initializeApp() {
         // Scheduled tasks
         setInterval(processSync, 10000); // Check queue every 10s
         setInterval(fetchFollowingsFromServer, 60000); // Refresh server list every 60s
-
-        // DOM Observer for button injection
-        const observer = new MutationObserver(() => {
-            clearTimeout(window.myObserverTimeout);
-            window.myObserverTimeout = setTimeout(injectButtonOnProfilePage, 500);
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
 
         // Post injection (based on effective list)
         injectionInterval = setInterval(injectPost, 2000);
