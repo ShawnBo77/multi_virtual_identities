@@ -7,6 +7,8 @@ let pendingChanges = {};
 const usernameInput = document.getElementById('username-input');
 const addFollowForm = document.getElementById('add-follow-form');
 const followList = document.getElementById('follow-list');
+const addCredForm = document.getElementById('add-cred-form');
+const credList = document.getElementById('cred-list');
 
 // ==========================================
 // State Management & Synchronization
@@ -294,6 +296,140 @@ followList.addEventListener('click', async (e) => {
 
             // Record action to queue (LWW)
             await recordAction('UNFOLLOW', usernameToRemove);
+        }
+    }
+});
+
+// ==========================================
+// Tab
+// ==========================================
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.target).classList.add('active');
+        if (btn.dataset.target === 'view-settings') {
+            fetchCredentials();
+        }
+    });
+});
+
+// --- Credential Management Logic ---
+async function fetchCredentials() {
+    if (!CLIENT_ID) return;
+    credList.innerHTML = 'Loading...';
+    try {
+        const res = await fetch(`${API_BASE_URL}/instagram/credentials`, {
+            headers: { 'Client-ID': CLIENT_ID }
+        });
+        if (res.ok) {
+            const creds = await res.json();
+            renderCreds(creds);
+        } else {
+            credList.innerHTML = 'Error loading accounts.';
+        }
+    } catch (e) {
+        credList.innerHTML = 'Failed to connect to server.';
+    }
+}
+
+function renderCreds(creds) {
+    credList.innerHTML = '';
+    if (creds.length === 0) {
+        credList.innerHTML = '<div style="text-align:center; color:#888;">No accounts linked.</div>';
+        return;
+    }
+    creds.forEach(cred => {
+        const div = document.createElement('div');
+        div.className = 'cred-item';
+        div.innerHTML = `
+            <span>${cred.username} ${cred.is_global ? '🌐' : ''}</span>
+            <span class="status-${cred.status.toLowerCase()}">${cred.status.toUpperCase()}</span>
+            <button class="delete-cred-btn" data-username="${cred.username}" title="Unlink this account">✖</button>
+        `;
+        credList.appendChild(div);
+    });
+}
+
+if (addCredForm) {
+    addCredForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('cred-username').value.trim();
+        const password = document.getElementById('cred-password').value.trim();
+        const isGlobal = document.getElementById('cred-is-global').checked;
+        const btn = addCredForm.querySelector('button');
+
+        if (!username || !password || !CLIENT_ID) {
+            alert("Please provide username, password, and ensure Client-ID is available.");
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Processing...';
+        try {
+            const response = await fetch(`${API_BASE_URL}/instagram/credentials`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Client-ID': CLIENT_ID },
+                body: JSON.stringify({ username, password, is_global: isGlobal })
+            });
+            if (response.ok) {
+                alert('Account saved! The system will attempt to login soon.');
+                document.getElementById('cred-username').value = '';
+                document.getElementById('cred-password').value = '';
+                document.getElementById('cred-is-global').checked = false;
+                fetchCredentials();
+            } else {
+                const err = await response.json();
+                alert(`Failed: ${err.detail || 'Unknown error'}`);
+            }
+        } catch (e) {
+            alert('Error connecting to server.');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Save Account';
+        }
+    });
+}
+
+credList.addEventListener('click', async (e) => {
+    // Check if a delete button was the target of the click
+    if (e.target.classList.contains('delete-cred-btn')) {
+        const username = e.target.dataset.username;
+        if (!username || !CLIENT_ID) return;
+
+        // Ask for user confirmation before proceeding
+        if (confirm(`Are you sure you want to unlink the account "${username}"?`)) {
+            // Provide visual feedback
+            e.target.disabled = true;
+            e.target.textContent = '...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/instagram/credentials/${username}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Client-ID': CLIENT_ID
+                    }
+                });
+
+                if (response.ok) { // Handles 204 No Content status
+                    console.log(`Account ${username} unlinked successfully.`);
+                    // Refresh the list from the server to show the change
+                    fetchCredentials();
+                } else {
+                    const errData = await response.json();
+                    alert(`Failed to unlink account: ${errData.detail || 'Unknown server error'}`);
+                    // Restore button on failure
+                    e.target.disabled = false;
+                    e.target.textContent = '✖';
+                }
+            } catch (error) {
+                alert('Error connecting to the server. Please try again.');
+                // Restore button on network failure
+                e.target.disabled = false;
+                e.target.textContent = '✖';
+            }
         }
     }
 });

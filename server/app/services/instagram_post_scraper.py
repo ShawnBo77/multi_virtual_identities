@@ -29,7 +29,7 @@ USERNAME_LOCATORS = [
 ]
 
 
-class InstagramScraper:
+class InstagramPostScraper:
     def __init__(self):
         self._stop_event = threading.Event()
         self._thread = None
@@ -117,9 +117,9 @@ class InstagramScraper:
 
         # Browser exists and matches requirement
         if self.driver is not None:
-            if cred_id is None:
+            if cred_id is None and self._verify_login_status():
                 return True
-            if self.current_cred_id == cred_id:
+            if self.current_cred_id == cred_id and self._verify_login_status():
                 return True
 
         # Need to switch or start fresh
@@ -127,18 +127,19 @@ class InstagramScraper:
 
         db = SessionLocal()
         cred_obj = None
+        try:
+            if cred_id:
+                # Try to get the specific sticky credential
+                cred_obj = instagram_service.get_credential_by_id(db, cred_id)
+                if not cred_obj:
+                    print(f"[Background] ⚠ Sticky credential ID {cred_id} not found/inactive.")
 
-        if cred_id:
-            # Try to get the specific sticky credential
-            cred_obj = instagram_service.get_credential_by_id(db, cred_id)
+            # Fallback or Random request
             if not cred_obj:
-                print(f"[Background] ⚠ Sticky credential ID {cred_id} not found/inactive.")
+                cred_obj = instagram_service.get_random_available_credential(db)
 
-        # Fallback or Random request
-        if not cred_obj:
-            cred_obj = instagram_service.get_random_active_credential(db)
-
-        db.close()
+        finally:
+            db.close()
 
         if not cred_obj:
             print("[Background] ✗ No active credentials available!")
@@ -147,16 +148,18 @@ class InstagramScraper:
         # Start Selenium
         self.current_cred_id = cred_obj.id
         self.current_cred_username = cred_obj.username
+        user_agent = cred_obj.user_agent
+
         print(f"[Background] Initializing Browser with account: {self.current_cred_username}")
-
-        service = FirefoxService(GeckoDriverManager().install())
-        options = webdriver.FirefoxOptions()
-        # options.add_argument("--headless")
-        options.set_preference("general.useragent.override", cred_obj.user_agent)
-        options.set_preference("dom.webdriver.enabled", False)
-        options.set_preference("useAutomationExtension", False)
-
         try:
+            service = FirefoxService(GeckoDriverManager().install())
+            options = webdriver.FirefoxOptions()
+            # options.add_argument("--headless")
+            if user_agent:
+                options.set_preference("general.useragent.override", user_agent)
+            options.set_preference("dom.webdriver.enabled", False)
+            options.set_preference("useAutomationExtension", False)
+
             self.driver = webdriver.Firefox(service=service, options=options)
 
             cookies = cred_obj.cookies if cred_obj.cookies else []
@@ -165,11 +168,20 @@ class InstagramScraper:
                 or not self._verify_login_status()
             ):
                 print(f"[Background] Login failed for {self.current_cred_username}.")
-                # mark cred inactive
                 with SessionLocal() as db:
-                    instagram_service.mark_credential_inactive(db, self.current_cred_id)
+                    instagram_service.update_credential_status(
+                        db, self.current_cred_id, status=instagram_model.CredentialStatus.PENDING
+                    )
                 self._close_browser()
                 return False
+
+            if not user_agent:
+                current_user_agent = self.driver.execute_script("return navigator.userAgent;")
+                current_cookies = self.driver.get_cookies()
+                with SessionLocal() as db:
+                    instagram_service.update_credential_session(
+                        db, self.current_cred_id, {"user_agent": current_user_agent, "cookies": current_cookies}
+                    )
 
             return True
 
@@ -184,7 +196,7 @@ class InstagramScraper:
         try:
             db = SessionLocal()
             current_cookies = self.driver.get_cookies()
-            instagram_service.update_credential_cookies(db, self.current_cred_id, current_cookies)
+            instagram_service.update_credential_session(db, self.current_cred_id, current_cookies)
             db.close()
         except Exception as e:
             print(f"[Background] Failed to update cookies in DB: {e}")
@@ -197,6 +209,8 @@ class InstagramScraper:
             except Exception:
                 pass
             self.driver = None
+            self.current_cred_id = None
+            self.current_cred_username = None
 
     def _get_next_user_to_scrape(self, db: Session) -> Optional[instagram_model.InstagramUser]:
         """
@@ -235,8 +249,8 @@ class InstagramScraper:
                 target_user = self._get_next_user_to_scrape(db)
 
                 if not target_user:
-                    print("[Background] No users need to scrape. Sleep 10 min.")
-                    self._wait(600)
+                    print("[Background] No users need to scrape. Sleep 1 min.")
+                    self._wait(60)
                     continue
 
                 username = target_user.username
@@ -274,7 +288,6 @@ class InstagramScraper:
                 # Sync user
                 if scraped_user_info and scraped_user_info.get("pk"):
                     print(f"[Background] Syncing user data for @{scraped_user_info.get('username')}...")
-                    scraped_user_info["profile_pic_local_path"] = scraped_user_info.get("pk")
                     target_user = instagram_service.update_user_from_data(db, scraped_user_info)
                 else:
                     print(
@@ -282,10 +295,7 @@ class InstagramScraper:
                     )
                     if target_user.id:
                         instagram_service.create_scrape_log(
-                            db,
-                            target_user.id,
-                            self.current_cred_id,
-                            status=instagram_model.ScrapeStatus.FAILED,
+                            db, target_user.id, self.current_cred_id, status=instagram_model.ScrapeStatus.FAILED
                         )
                     continue
 
@@ -338,4 +348,4 @@ class InstagramScraper:
         self._stop_event.wait(seconds)
 
 
-instagram_scraper = InstagramScraper()
+instagram_post_scraper = InstagramPostScraper()

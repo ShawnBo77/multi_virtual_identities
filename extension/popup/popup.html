@@ -2,21 +2,37 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Follow List</title>
+    <title>Social Shield</title>
     <link rel="stylesheet" href="popup.css">
 </head>
 <body>
     <div class="container">
-        <h1>Follow List</h1>
-        
-        <form id="add-follow-form">
-            <input type="text" id="username-input" placeholder="Username..." required>
-            <button type="submit">Follow</button>
-        </form>
+        <div class="tabs">
+            <button class="tab-btn active" data-target="view-follow">Follows</button>
+            <button class="tab-btn" data-target="view-settings">Accounts</button>
+        </div>
 
-        <ul id="follow-list">
-            <li class="loading">Loading...</li>
-        </ul>
+        <div id="view-follow" class="view-section active">
+            <form id="add-follow-form">
+                <input type="text" id="username-input" placeholder="Username to follow..." required>
+                <button type="submit">Follow</button>
+            </form>
+            <ul id="follow-list"></ul>
+        </div>
+
+        <div id="view-settings" class="view-section">
+            <h3>Instagram Accounts</h3>
+            <form id="add-cred-form">
+                <input type="text" id="cred-username" placeholder="Username" required>
+                <input type="password" id="cred-password" placeholder="Password" required>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="cred-is-global">
+                    <label for="cred-is-global">Make this a global account</label>
+                </div>
+                <button type="submit" style="width: 100%; margin-top: 10px;">Save Account</button>
+            </form>
+            <div id="cred-list" style="margin-top: 15px;"></div>
+        </div>
     </div>
     <script src="popup.js"></script>
 </body>

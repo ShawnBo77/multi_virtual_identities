@@ -14,6 +14,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from ..database import Base
+from sqlalchemy import Table
 
 
 class InstagramUser(Base):
@@ -86,16 +87,37 @@ class ScrapeStatus(enum.Enum):
     LOGIN_FAILED = "login_failed"
 
 
+class CredentialStatus(str, enum.Enum):
+    PENDING = "pending"  # Waiting for login attempt
+    SUCCESS = "success"  # Logged in and cookies are valid
+    LOGIN_FAILED = "login_failed"  # Password incorrect or generic login error
+    CHALLENGE = "challenge"  # 2FA or Challenge required (Manual intervention needed)
+    INACTIVE = "inactive"  # Manually disabled by user
+    LOCKED = "locked"  # Account banned or locked
+
+
+client_instagram_credentials = Table(
+    "client_instagram_credentials",
+    Base.metadata,
+    Column("client_id", Integer, ForeignKey("clients.id"), primary_key=True),
+    Column("credential_id", Integer, ForeignKey("instagram_credentials.id"), primary_key=True),
+    Column("created_at", DateTime, default=datetime.utcnow),
+)
+
+
 class InstagramCredential(Base):
     __tablename__ = "instagram_credentials"
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True, nullable=False)
+    password = Column(String, nullable=True)
     cookies = Column(JSON, nullable=True)  # Store Selenium cookies as JSON
-    user_agent = Column(String, nullable=False)
-    is_active = Column(Boolean, default=True)  # False if account is banned/suspended
+    user_agent = Column(String, nullable=True)
+    is_global = Column(Boolean, default=False)
+    status = Column(SAEnum(CredentialStatus), default=CredentialStatus.PENDING, nullable=False)
     last_used_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    owners = relationship("Client", secondary=client_instagram_credentials, back_populates="instagram_accounts")
 
 
 class InstagramScrapeLog(Base):

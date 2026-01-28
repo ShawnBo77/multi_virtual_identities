@@ -6,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from .database import engine
 from .models import client_model, follow_model, instagram_model
 from .routers import client_router, follow_router, instagram_router
-from .services.instagram_scraper import instagram_scraper 
+from .services.instagram_credential_scraper import instagram_credential_scraper
+from .services.instagram_post_scraper import instagram_post_scraper
 
 # Create all tables
 client_model.Base.metadata.create_all(bind=engine)
@@ -16,12 +17,14 @@ instagram_model.Base.metadata.create_all(bind=engine)
 # @contextlib.asynccontextmanager
 # async def lifespan(app: FastAPI):
 #     print("--- Server Starting: Launching Background Scraper ---")
-#     instagram_scraper.start()
-    
+#     instagram_credential_scraper.start()
+#     instagram_post_scraper.start()
+
 #     yield
-    
+
 #     print("--- Server Stopping: Shutting down Scraper ---")
-#     instagram_scraper.stop()
+#     instagram_credential_scraper.stop()
+#     instagram_post_scraper.stop()
 
 # app = FastAPI(lifespan=lifespan)
 app = FastAPI()

@@ -2,6 +2,7 @@ import json
 import time
 import random
 import getpass
+import os
 
 from selenium import webdriver
 from selenium.webdriver.firefox.service import Service as FirefoxService
@@ -137,20 +138,24 @@ def check_login_status(driver):
         return False
 
 
-def login_and_get_cookies(username, password, headless=False):
+def login_and_get_cookies(username, password, driver=None, headless=False):
     print(f"\n--- Starting Instagram Login for user: {username} ---")
 
-    options = webdriver.FirefoxOptions()
-    if headless:
-        options.add_argument("--headless")
+    is_local_driver = False
 
-    # Anti-detection settings
-    options.set_preference("dom.webdriver.enabled", False)
-    options.set_preference("useAutomationExtension", False)
-    options.set_preference("intl.accept_languages", "en-US, en")
+    if driver is None:
+        is_local_driver = True
+        options = webdriver.FirefoxOptions()
+        if headless:
+            options.add_argument("--headless")
 
-    driver = webdriver.Firefox(service=FirefoxService(GeckoDriverManager().install()), options=options)
-    driver.set_window_size(random.randint(1024, 1280), random.randint(768, 900))
+        # Anti-detection settings
+        options.set_preference("dom.webdriver.enabled", False)
+        options.set_preference("useAutomationExtension", False)
+        options.set_preference("intl.accept_languages", "en-US, en")
+
+        driver = webdriver.Firefox(service=FirefoxService(GeckoDriverManager().install()), options=options)
+        driver.set_window_size(random.randint(1024, 1280), random.randint(768, 900))
 
     wait = WebDriverWait(driver, 5)
     result_data = None
@@ -161,23 +166,27 @@ def login_and_get_cookies(username, password, headless=False):
         driver.get("https://www.instagram.com/accounts/login/")
 
         try:
-            # Fill Credentials
-            username_input = find_element(wait, USERNAME_LOCATORS)
-            password_input = find_element(wait, PASSWORD_LOCATORS)
+            if check_login_status(driver):
+                print("[System] Already logged in.")
+                login_success = True
+            else:
+                # Fill Credentials
+                username_input = find_element(wait, USERNAME_LOCATORS)
+                password_input = find_element(wait, PASSWORD_LOCATORS)
 
-            time.sleep(random.uniform(1.5, 2))
-            type_like_human(username_input, username)
-            time.sleep(random.uniform(0.5, 1))
-            type_like_human(password_input, password)
-            time.sleep(random.uniform(1, 2))
+                time.sleep(random.uniform(1.5, 2))
+                type_like_human(username_input, username)
+                time.sleep(random.uniform(0.5, 1))
+                type_like_human(password_input, password)
+                time.sleep(random.uniform(1, 2))
 
-            # Click login button
-            login_button = find_element(wait, LOGIN_LOCATORS)
-            wait.until(EC.visibility_of(login_button))
-            login_button.click()
-            print("[Action] Login button clicked. Waiting for response...")
-            time.sleep(random.uniform(5, 10))
-            login_success = check_login_status(driver)
+                # Click login button
+                login_button = find_element(wait, LOGIN_LOCATORS)
+                wait.until(EC.visibility_of(login_button))
+                login_button.click()
+                print("[Action] Login button clicked. Waiting for response...")
+                time.sleep(random.uniform(10, 15))
+                login_success = check_login_status(driver)
         except Exception as e:
             manual_login(reason=e)
 
@@ -197,10 +206,11 @@ def login_and_get_cookies(username, password, headless=False):
             result_data = extract_cookies(driver)
 
             if result_data:
-                filename = f"ins_cred_{username}.json"
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                filename = os.path.join(script_dir, f"ins_cred_{username}.json")
                 with open(filename, "w", encoding="utf-8") as f:
                     json.dump(result_data, f, ensure_ascii=False, indent=4)
-                print(f"[System] Saved to {filename}")
+                print(f"[System] Saved credential to {filename}")
         else:
             print("[Fail] Login process failed. No cookies saved.")
 
@@ -208,8 +218,9 @@ def login_and_get_cookies(username, password, headless=False):
         print(f"\n[Error] An unexpected error occurred: {e}")
         # driver.save_screenshot("error_snapshot.png")
     finally:
-        print("--- Closing Browser ---")
-        driver.quit()
+        if is_local_driver:
+            print("--- Closing Browser ---")
+            driver.quit()
 
     return result_data
 
@@ -218,4 +229,4 @@ if __name__ == "__main__":
     my_user = input("Username: ")
     my_pass = getpass.getpass("Password: ")
 
-    login_and_get_cookies(my_user, my_pass)
+    login_and_get_cookies(my_user, my_pass, headless=False)

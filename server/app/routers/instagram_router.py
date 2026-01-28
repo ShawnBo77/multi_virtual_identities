@@ -84,3 +84,47 @@ def get_instagram_feed(
     Returns posts sorted by 'taken_at' (newest first).
     """
     return instagram_service.get_unsent_posts(db=db, client_id=client_id, usernames=usernames, limit=limit)
+
+
+@router.post("/credentials", response_model=instagram_schema.CredentialResponse)
+def register_credential(
+    payload: instagram_schema.CredentialCreate,
+    client_id: int = Header(..., alias="Client-ID"),
+    db: Session = Depends(get_db),
+):
+    try:
+        return instagram_service.register_credential_for_client(
+            db, client_id=client_id, username=payload.username, password=payload.password, is_global=payload.is_global
+        )
+    except HTTPException as http_ex:
+        raise http_ex
+    except Exception as e:
+        print(f"Error registering credential: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error processing credential.")
+
+
+@router.get(
+    "/credentials",
+    response_model=List[instagram_schema.CredentialResponse],
+    summary="List accounts linked to this client",
+)
+def get_credentials(client_id: int = Header(..., alias="Client-ID"), db: Session = Depends(get_db)):
+    """
+    Returns a list of Instagram accounts specifically linked to the requesting Client-ID.
+    """
+    creds = instagram_service.get_credentials_by_client(db, client_id)
+
+    return creds
+
+
+@router.delete("/credentials/{username}", status_code=204, summary="Unlink an Instagram Account from a Client")
+def unlink_credential(username: str, client_id: int = Header(..., alias="Client-ID"), db: Session = Depends(get_db)):
+    """
+    Removes the link between the requesting client and the specified Instagram account.
+    If the account becomes orphaned (no other clients are linked to it), it will be deleted.
+    """
+    success = instagram_service.unlink_credential_from_client(db, client_id=client_id, username=username)
+    if not success:
+        raise HTTPException(status_code=404, detail="Link between client and credential not found.")
+
+    return

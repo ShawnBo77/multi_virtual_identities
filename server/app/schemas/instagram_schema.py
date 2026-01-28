@@ -142,3 +142,19 @@ class InstagramPostBrief(InstagramPostBase):
 
     class Config:
         from_attributes = True
+
+
+class CredentialCreate(BaseModel):
+    username: str
+    password: str
+    is_global: bool = False
+
+
+class CredentialResponse(BaseModel):
+    id: int
+    username: str
+    status: str
+    last_used_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True

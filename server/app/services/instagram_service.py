@@ -5,6 +5,7 @@ from datetime import datetime
 from ..models import client_model, instagram_model, follow_model
 from ..schemas import instagram_schema
 from sqlalchemy.sql.expression import func
+from fastapi import HTTPException
 
 
 def get_user_by_pk(db: Session, pk: str):
@@ -149,7 +150,7 @@ def update_user_scrape_time(db: Session, pk: str):
     """
     user_to_update = get_user_by_pk(db, pk=pk)
     if user_to_update:
-        user_to_update.last_scraped_at = datetime.utcnow()
+        user_to_update.last_scraped_at = datetime.now(datetime.UTC)
         db.commit()
         db.refresh(user_to_update)
         print(f"  - Updated last_scraped_at for user {pk}.")
@@ -270,10 +271,11 @@ def get_unsent_posts(
     return posts
 
 
-def get_random_active_credential(db: Session) -> Optional[instagram_model.InstagramCredential]:
+def get_random_available_credential(db: Session) -> Optional[instagram_model.InstagramCredential]:
     return (
         db.query(instagram_model.InstagramCredential)
-        .filter(instagram_model.InstagramCredential.is_active)
+        .filter(instagram_model.InstagramCredential.status == instagram_model.CredentialStatus.SUCCESS)
+        .filter(instagram_model.InstagramCredential.is_global.is_(True))
         .order_by(func.random())
         .first()
     )
@@ -282,37 +284,134 @@ def get_random_active_credential(db: Session) -> Optional[instagram_model.Instag
 def get_credential_by_id(db: Session, cred_id: int) -> Optional[instagram_model.InstagramCredential]:
     return (
         db.query(instagram_model.InstagramCredential)
-        .filter(instagram_model.InstagramCredential.id == cred_id, instagram_model.InstagramCredential.is_active)
+        .filter(
+            instagram_model.InstagramCredential.id == cred_id,
+            instagram_model.InstagramCredential.status == instagram_model.CredentialStatus.SUCCESS,
+        )
         .first()
     )
 
 
-def update_credential_cookies(db: Session, cred_id: int, new_cookies: list):
-    cred = (
-        db.query(instagram_model.InstagramCredential).filter(instagram_model.InstagramCredential.id == cred_id).first()
-    )
+def upsert_instagram_credential(
+    db: Session, username: str, password: str, is_global: bool = False
+) -> instagram_model.InstagramCredential:
+    """
+    Creates a new credential record or updates an existing one.
+    Sets status to 'PENDING' to trigger the login process.
+    """
+    cred = db.query(instagram_model.InstagramCredential).filter_by(username=username).first()
 
     if cred:
-        cred.cookies = new_cookies
-        cred.last_used_at = datetime.utcnow()
+        # Update existing credential
+        cred.password = password
+        cred.status = instagram_model.CredentialStatus.PENDING
+        cred.is_global = is_global
+        print(f"    - [DB] Updated password for {username}.")
+    else:
+        # Create new credential
+        cred = instagram_model.InstagramCredential(
+            username=username,
+            password=password,
+            user_agent=None,
+            status=instagram_model.CredentialStatus.PENDING,
+            is_global=is_global,
+        )
+        db.add(cred)
+        print(f"    - [DB] Created new credential record for {username}.")
+
+    db.flush()
+    return cred
+
+
+def register_credential_for_client(
+    db: Session, client_id: int, username: str, password: str, is_global: bool = False
+) -> instagram_model.InstagramCredential:
+    client = db.query(client_model.Client).filter(client_model.Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail=f"Client with ID {client_id} not found")
+
+    # Upsert Credential
+    cred = upsert_instagram_credential(db, username, password, is_global)
+
+    # Create Association
+    if cred not in client.instagram_accounts:
+        client.instagram_accounts.append(cred)
+        print(f"    - [DB] Linked credential '{username}' to Client ID {client_id}.")
+    else:
+        print(f"    - [DB] Credential '{username}' is already linked to Client ID {client_id}.")
+
+    db.commit()
+    db.refresh(cred)
+
+    return cred
+
+
+def unlink_credential_from_client(db: Session, client_id: int, username: str) -> bool:
+    """
+    Unlinks a credential from a client.
+    If the credential has no other owners after unlinking, it is deleted from the database.
+    """
+    # Find the client and the credential
+    client = db.query(client_model.Client).filter(client_model.Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    cred = db.query(instagram_model.InstagramCredential).filter_by(username=username).first()
+    if not cred:
+        return True
+
+    # Check if the link exists and remove it
+    if cred in client.instagram_accounts:
+        client.instagram_accounts.remove(cred)
         db.commit()
-        print(f"    - [DB] Updated cookies for credential ID: {cred_id} ({cred.username})")
+        print(f"    - [DB] Unlinked '{username}' from Client ID {client_id}.")
+
+        # Check for orphans and clean up
+        db.refresh(cred)
+        if len(cred.owners) == 0:
+            print(f"    - [DB] Credential '{username}' is now an orphan. Deleting record.")
+            db.delete(cred)
+            db.commit()
+
+        return True
+
+    return True
 
 
-def mark_credential_inactive(db: Session, cred_id: int):
-    cred = (
-        db.query(instagram_model.InstagramCredential).filter(instagram_model.InstagramCredential.id == cred_id).first()
-    )
+def update_credential_session(db: Session, cred_id: int, session_data: dict):
+    """
+    Updates the session data (cookies, user-agent) and marks the credential status as SUCCESS.
+    """
+    cred = db.query(instagram_model.InstagramCredential).filter_by(id=cred_id).first()
+
+    if not cred:
+        return False
+
+    cookies = session_data.get("cookies_for_selenium") or session_data.get("cookies")
+    if cookies:
+        cred.cookies = cookies
+    user_agent = session_data.get("user_agent")
+    if user_agent:
+        cred.user_agent = user_agent
+    cred.status = instagram_model.CredentialStatus.SUCCESS
+    cred.last_used_at = datetime.now(datetime.UTC)
+    db.commit()
+    print(f"    - [DB] Updated for credential ID: {cred_id} ({cred.username})")
+    return True
+
+
+def update_credential_status(db: Session, cred_id: int, status: instagram_model.CredentialStatus):
+    cred = db.query(instagram_model.InstagramCredential).filter_by(id=cred_id).first()
 
     if cred:
-        cred.is_active = False
+        cred.status = status
         db.commit()
-        print(f"    - [DB] Marked credential ID {cred_id} ({cred.username}) as INACTIVE.")
+        print(f"    - [DB] Credential {cred.username} status changed to {status}")
 
 
 def create_scrape_log(db: Session, target_user_id: int, credential_id: int, status: instagram_model.ScrapeStatus):
     new_log = instagram_model.InstagramScrapeLog(
-        target_user_id=target_user_id, credential_id=credential_id, status=status, created_at=datetime.utcnow()
+        target_user_id=target_user_id, credential_id=credential_id, status=status, created_at=datetime.now(datetime.UTC)
     )
     db.add(new_log)
     db.commit()
@@ -332,7 +431,7 @@ def get_last_successful_credential_id(db: Session, target_user_id: int) -> Optio
         .filter(
             instagram_model.InstagramScrapeLog.target_user_id == target_user_id,
             instagram_model.InstagramScrapeLog.status == instagram_model.ScrapeStatus.SUCCESS,
-            instagram_model.InstagramCredential.is_active.is_(True),
+            instagram_model.InstagramCredential.status == instagram_model.CredentialStatus.SUCCESS,
         )
         .order_by(instagram_model.InstagramScrapeLog.created_at.desc())
         .first()
@@ -349,6 +448,18 @@ def get_credential_by_username(db: Session, username: str) -> Optional[instagram
     """
     return (
         db.query(instagram_model.InstagramCredential)
-        .filter(instagram_model.InstagramCredential.username == username, instagram_model.InstagramCredential.is_active)
+        .filter(instagram_model.InstagramCredential.username == username)
         .first()
     )
+
+
+def get_credentials_by_client(db: Session, client_id: int) -> List[instagram_model.InstagramCredential]:
+    """
+    Retrieves all Instagram credentials linked to a specific client.
+    """
+    client = db.query(client_model.Client).filter(client_model.Client.id == client_id).first()
+
+    if not client:
+        return []
+
+    return client.instagram_accounts
