@@ -2,13 +2,19 @@
   "manifest_version": 3,
   "name": "Social Shield",
   "version": "1.0",
-  "action": {
-    "default_popup": "popup/popup.html",
-    "default_title": "Following list"
-  },
-  "permissions": [
-    "storage"
+   "permissions": [
+    "storage",
+    "sidePanel"
   ],
+  "action": {
+    "default_title": "Social Shield"
+  },
+  "side_panel": {
+    "default_path": "sidepanel/sidepanel.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
   "host_permissions": [
     "http://127.0.0.1:8000/*"
   ],

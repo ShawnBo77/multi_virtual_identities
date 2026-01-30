@@ -107,31 +107,23 @@ async function processSync() {
         return;
     }
 
-    // if ((action.type === 'FOLLOW' && isFollowedInServer) ||
-    //     (action.type === 'UNFOLLOW' && !isFollowedInServer)) {
-    //     console.log(`[Popup] Action matches server state for ${username}. Dropping.`);
-    //     delete pendingChanges[username];
-    //     await saveState();
-    //     isSyncing = false;
-    //     processSync();
-    //     return;
-    // }
-
     try {
         let success = false;
+        let response;
+
         if (action.type === 'FOLLOW') {
-            const res = await fetch(`${API_BASE_URL}/instagram/followings`, {
+            response = await fetch(`${API_BASE_URL}/instagram/followings`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Client-ID': CLIENT_ID },
                 body: JSON.stringify({ followed_username: username })
             });
-            if (res.ok || res.status === 409) success = true;
+            if (response.ok || response.status === 409) success = true;
         } else {
-            const res = await fetch(`${API_BASE_URL}/instagram/followings/${username}`, {
+            response = await fetch(`${API_BASE_URL}/instagram/followings/${username}`, {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json', 'Client-ID': CLIENT_ID }
             });
-            if (res.ok || res.status === 404) success = true;
+            if (response.ok || response.status === 404) success = true;
         }
 
         if (success) {
@@ -149,12 +141,15 @@ async function processSync() {
                 processSync();
             }, 100);
             return;
+        } else {
+            console.warn(`[Sync] Server returned an error (${response.status}) for ${username}. Will retry later.`);
+            isSyncing = false;
         }
+
     } catch (error) {
         console.error(`[Popup] Sync failed for ${username}:`, error);
+        isSyncing = false;
     }
-
-    isSyncing = false;
 }
 
 async function fetchFollowingsFromServer() {
@@ -184,19 +179,12 @@ async function fetchFollowingsFromServer() {
                 const localAction = pendingChanges[username];
                 const serverEntry = newServerCache[username];
                 const serverTime = serverEntry ? serverEntry.timestamp : 0;
-                // const isServerFollowed = serverEntry ? serverEntry.isFollowing : false;
 
                 // Remove local action if server is newer
                 if (serverTime > localAction.timestamp) {
                     delete pendingChanges[username];
                     return;
                 }
-
-                // Remove local action if state matches
-                // if ((localAction.type === 'FOLLOW' && isServerFollowed) ||
-                //     (localAction.type === 'UNFOLLOW' && !isServerFollowed)) {
-                //     delete pendingChanges[username];
-                // }
             });
 
             serverCache = newServerCache;
@@ -451,5 +439,18 @@ async function main() {
         followList.innerHTML = '<li style="padding:10px;">Error: Client ID not found. Please browse Instagram to register this extension.</li>';
     }
 }
+
+chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === 'local') {
+        if (changes.pendingChanges || changes.serverCache) {
+            console.log('[Sidepanel] Storage change detected from another script (e.g., content.js). Reloading state and re-rendering list.');
+
+            setTimeout(async () => {
+                await loadState();
+                renderFollowList();
+            }, 100);
+        }
+    }
+});
 
 document.addEventListener('DOMContentLoaded', main);

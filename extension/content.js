@@ -125,7 +125,6 @@ async function processSync() {
 
     const serverData = serverCache[username];
     const serverTimestamp = serverData ? serverData.timestamp : 0;
-    const isFollowedInServer = serverData ? serverData.isFollowing : false;
 
     // If Server data is newer, discard local action
     if (serverTimestamp > action.timestamp) {
@@ -137,35 +136,25 @@ async function processSync() {
         return;
     }
 
-    // If local action matches server state, discard it
-    // if ((action.type === 'FOLLOW' && isFollowedInServer) ||
-    //     (action.type === 'UNFOLLOW' && !isFollowedInServer)) {
-    //     console.log(`[IG Injector] Local action matches server state for ${username}. Dropping.`);
-    //     delete pendingChanges[username];
-    //     await saveState();
-    //     isSyncing = false;
-    //     processSync();
-    //     return;
-    // }
-
     console.log(`[IG Injector] Syncing to Server: ${action.type} ${username}`);
 
     try {
         let success = false;
+        let response;
 
         if (action.type === 'FOLLOW') {
-            const res = await fetch(`${API_BASE_URL}/instagram/followings`, {
+            response = await fetch(`${API_BASE_URL}/instagram/followings`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Client-ID': CLIENT_ID },
                 body: JSON.stringify({ followed_username: username })
             });
-            if (res.ok || res.status === 409) success = true;
+            if (response.ok || response.status === 409) success = true;
         } else {
-            const res = await fetch(`${API_BASE_URL}/instagram/followings/${username}`, {
+            response = await fetch(`${API_BASE_URL}/instagram/followings/${username}`, {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json', 'Client-ID': CLIENT_ID }
             });
-            if (res.ok || res.status === 404) success = true;
+            if (response.ok || response.status === 404) success = true;
         }
 
         if (success) {
@@ -181,14 +170,15 @@ async function processSync() {
                 isSyncing = false;
                 processSync();
             }, 100);
-            return;
+        } else {
+            console.warn(`[Sync] Server returned an error (${response.status}) for ${username}. Will retry later.`);
+            isSyncing = false;
         }
 
     } catch (e) {
         console.warn(`[IG Injector] Network error syncing ${username}. Keeping in queue.`);
+        isSyncing = false;
     }
-
-    isSyncing = false;
 }
 
 async function fetchFollowingsFromServer() {
@@ -219,7 +209,6 @@ async function fetchFollowingsFromServer() {
 
                 const serverEntry = newServerCache[username];
                 const serverTime = serverEntry ? serverEntry.timestamp : 0;
-                const isServerFollowed = serverEntry ? serverEntry.isFollowing : false;
 
                 // Server data is newer -> Discard local pending action
                 if (serverTime > localAction.timestamp) {
@@ -227,12 +216,6 @@ async function fetchFollowingsFromServer() {
                     delete pendingChanges[username];
                     return;
                 }
-
-                // State matches -> Discard local pending action
-                // if ((localAction.type === 'FOLLOW' && isServerFollowed) ||
-                //     (localAction.type === 'UNFOLLOW' && !isServerFollowed)) {
-                //     delete pendingChanges[username];
-                // }
             });
 
             serverCache = newServerCache;
@@ -550,8 +533,8 @@ function showContextMenu(x, y, username) {
 
     const menuItem = document.createElement('div');
     menuItem.className = `anon-menu-item ${isAnonFollowing ? 'action-unfollow' : 'action-follow'}`;
-    menuItem.innerHTML = isAnonFollowing 
-        ? '<span>Unfollow (Anonymous)</span>' 
+    menuItem.innerHTML = isAnonFollowing
+        ? '<span>Unfollow (Anonymous)</span>'
         : '<span>Follow Anonymously</span>';
 
     // Handle click action
@@ -604,7 +587,7 @@ document.addEventListener('contextmenu', (e) => {
     // Define keywords for Follow buttons
     const btnText = targetBtn.innerText || "";
     const followKeywords = ['Follow', 'Following', 'Requested', '追蹤', '已追蹤', '追蹤中', '已送出請求'];
-    
+
     // Check if button text matches keywords
     const isTargetButton = followKeywords.some(kw => btnText.includes(kw));
 
@@ -614,7 +597,7 @@ document.addEventListener('contextmenu', (e) => {
         e.stopPropagation();
 
         console.log(`[IG Injector] Right-click intercepted on button: "${btnText.replace(/\n/g, '')}" for user: ${currentUsername}`);
-        
+
         // Show custom menu
         showContextMenu(e.pageX, e.pageY, currentUsername);
     }
