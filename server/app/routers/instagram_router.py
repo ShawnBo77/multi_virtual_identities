@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, Query
+from fastapi import APIRouter, Depends, HTTPException, Header, Query, Response, status
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -84,6 +84,31 @@ def get_instagram_feed(
     Returns posts sorted by 'taken_at' (newest first).
     """
     return instagram_service.get_unsent_posts(db=db, client_id=client_id, usernames=usernames, limit=limit)
+
+
+@router.post("/posts/{post_id}/save", status_code=status.HTTP_201_CREATED, summary="Save a Post for the Client")
+def save_post_for_client(post_id: int, client_id: int = Header(..., alias="Client-ID"), db: Session = Depends(get_db)):
+    """
+    Saves a specific post for the requesting client.
+    """
+    saved_post = instagram_service.save_post(db=db, client_id=client_id, post_id=post_id)
+    if not saved_post:
+        # This case is now handled by the service, but as a fallback
+        raise HTTPException(status_code=400, detail="Could not save post")
+    return {"message": "Post saved successfully"}
+
+
+@router.delete("/posts/{post_id}/save", status_code=status.HTTP_204_NO_CONTENT, summary="Unsave a Post for the Client")
+def unsave_post_for_client(
+    post_id: int, client_id: int = Header(..., alias="Client-ID"), db: Session = Depends(get_db)
+):
+    """
+    Removes a saved post for the requesting client.
+    """
+    success = instagram_service.unsave_post(db=db, client_id=client_id, post_id=post_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Saved post record not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/credentials", response_model=instagram_schema.CredentialResponse)

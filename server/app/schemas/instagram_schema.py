@@ -130,6 +130,7 @@ class InstagramPost(InstagramPostBase):
     media_items: List[InstagramMedia]
     created_at: datetime
     updated_at: datetime
+    is_saved: Optional[bool] = False
 
     class Config:
         from_attributes = True
@@ -139,6 +140,7 @@ class InstagramPostBrief(InstagramPostBase):
     id: int
     owner: InstagramUserBrief
     media_items: List[InstagramMediaBrief]
+    is_saved: Optional[bool] = False
 
     class Config:
         from_attributes = True

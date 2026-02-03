@@ -80,6 +80,20 @@ class InstagramFeedHistory(Base):
     __table_args__ = (UniqueConstraint("client_id", "post_id", name="_client_ig_post_uc"),)
 
 
+class InstagramSavedPost(Base):
+    __tablename__ = "instagram_saved_posts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False, index=True)
+    post_id = Column(Integer, ForeignKey("instagram_posts.id"), nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    client = relationship("Client", back_populates="instagram_saved_posts")
+    post = relationship("InstagramPost")
+
+    __table_args__ = (UniqueConstraint("client_id", "post_id", name="_client_ig_post_saved_uc"),)
+
+
 class ScrapeStatus(enum.Enum):
     SUCCESS = "success"
     FAILED = "failed"

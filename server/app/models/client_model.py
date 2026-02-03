@@ -15,3 +15,4 @@ class Client(Base):
     instagram_accounts = relationship(
         "InstagramCredential", secondary="client_instagram_credentials", back_populates="owners"
     )
+    instagram_saved_posts = relationship("InstagramSavedPost", back_populates="client", cascade="all, delete-orphan")

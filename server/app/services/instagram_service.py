@@ -271,6 +271,39 @@ def get_unsent_posts(
     return posts
 
 
+def save_post(db: Session, client_id: int, post_id: int):
+    # Check if the saved record already exists
+    existing_save = db.query(instagram_model.InstagramSavedPost).filter_by(client_id=client_id, post_id=post_id).first()
+    if existing_save:
+        return existing_save  # Already saved
+
+    # Verify client and post exist
+    client = db.query(client_model.Client).filter_by(id=client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    post = db.query(instagram_model.InstagramPost).filter_by(id=post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+
+    new_saved_post = instagram_model.InstagramSavedPost(client_id=client_id, post_id=post_id)
+    db.add(new_saved_post)
+    db.commit()
+    db.refresh(new_saved_post)
+    return new_saved_post
+
+
+def unsave_post(db: Session, client_id: int, post_id: int) -> bool:
+    saved_post_to_delete = (
+        db.query(instagram_model.InstagramSavedPost).filter_by(client_id=client_id, post_id=post_id).first()
+    )
+
+    if saved_post_to_delete:
+        db.delete(saved_post_to_delete)
+        db.commit()
+        return True
+    return False  # Not found, so nothing to delete
+
+
 def get_random_available_credential(db: Session) -> Optional[instagram_model.InstagramCredential]:
     return (
         db.query(instagram_model.InstagramCredential)
@@ -279,7 +312,6 @@ def get_random_available_credential(db: Session) -> Optional[instagram_model.Ins
         .order_by(func.random())
         .first()
     )
-
 
 def get_credential_by_id(db: Session, cred_id: int) -> Optional[instagram_model.InstagramCredential]:
     return (
