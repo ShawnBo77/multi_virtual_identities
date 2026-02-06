@@ -404,14 +404,134 @@
 }
 
 .anon-menu-item.action-follow {
-    color: #0095f6; /* Blue for follow */
+    color: #0095f6;
+    /* Blue for follow */
 }
 
 .anon-menu-item.action-unfollow {
-    color: #ed4956; /* Red for unfollow */
+    color: #ed4956;
+    /* Red for unfollow */
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: scale(0.95); }
-    to { opacity: 1; transform: scale(1); }
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+#saved-posts-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.65);
+    z-index: 9998;
+    display: none;
+    /* Initially hidden */
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease;
+}
+
+#saved-posts-modal-overlay.visible {
+    display: flex;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.saved-posts-modal-content {
+    background-color: var(--ig-primary-background);
+    color: var(--ig-primary-text);
+    width: 90%;
+    max-width: 935px;
+    /* Instagram's standard max width */
+    height: 85%;
+    max-height: 800px;
+    border-radius: 12px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0.5;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.saved-posts-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--ig-separator);
+    flex-shrink: 0;
+}
+
+.saved-posts-modal-header h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+}
+
+#saved-posts-modal-close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    font-weight: bold;
+    color: var(--ig-primary-text);
+    cursor: pointer;
+    padding: 5px;
+}
+
+.saved-posts-grid-container {
+    padding: 12px;
+    overflow-y: auto;
+    flex-grow: 1;
+}
+
+.saved-posts-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    /* Reduced gap for a tighter look */
+}
+
+.saved-post-item a {
+    display: block;
+    position: relative;
+    padding-bottom: 100%;
+    /* Creates a square aspect ratio */
+    background-color: var(--ig-secondary-background);
+}
+
+.saved-post-item img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }

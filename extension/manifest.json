@@ -4,7 +4,8 @@
   "version": "1.0",
    "permissions": [
     "storage",
-    "sidePanel"
+    "sidePanel",
+    "tabs"
   ],
   "action": {
     "default_title": "Social Shield"
@@ -16,7 +17,8 @@
     "service_worker": "background.js"
   },
   "host_permissions": [
-    "http://127.0.0.1:8000/*"
+    "http://127.0.0.1:8000/*",
+    "https://*.instagram.com/*"
   ],
   "content_scripts": [
     {

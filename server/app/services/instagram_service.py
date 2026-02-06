@@ -304,6 +304,28 @@ def unsave_post(db: Session, client_id: int, post_id: int) -> bool:
     return False  # Not found, so nothing to delete
 
 
+def get_saved_posts_for_client(db: Session, client_id: int) -> List[instagram_model.InstagramPost]:
+    """
+    Retrieves all posts saved by a specific client, ordered by when they were saved.
+    """
+    client = db.query(client_model.Client).filter(client_model.Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    saved_posts_query = (
+        db.query(instagram_model.InstagramPost)
+        .join(
+            instagram_model.InstagramSavedPost,
+            instagram_model.InstagramPost.id == instagram_model.InstagramSavedPost.post_id,
+        )
+        .filter(instagram_model.InstagramSavedPost.client_id == client_id)
+        .order_by(instagram_model.InstagramSavedPost.created_at.desc())
+        .all()
+    )
+
+    return saved_posts_query
+
+
 def get_random_available_credential(db: Session) -> Optional[instagram_model.InstagramCredential]:
     return (
         db.query(instagram_model.InstagramCredential)
@@ -312,6 +334,7 @@ def get_random_available_credential(db: Session) -> Optional[instagram_model.Ins
         .order_by(func.random())
         .first()
     )
+
 
 def get_credential_by_id(db: Session, cred_id: int) -> Optional[instagram_model.InstagramCredential]:
     return (

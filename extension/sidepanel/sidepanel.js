@@ -426,6 +426,33 @@ credList.addEventListener('click', async (e) => {
 // Initialization
 // ==========================================
 
+function sendMessageWithRetries(tabId, message, retries = 5) {
+    console.log(`[Sidepanel] Attempting to send message (Retries left: ${retries})...`, message);
+
+    chrome.tabs.sendMessage(tabId, message, (response) => {
+        if (chrome.runtime.lastError) {
+            if (retries > 0) {
+                setTimeout(() => {
+                    sendMessageWithRetries(tabId, message, retries - 1);
+                }, 300);
+            } else {
+                console.error("[Sidepanel] Final retry failed. Could not establish connection.");
+                alert("Failed to communicate with the Instagram page. Please ensure you are on the correct page and refresh if the problem persists.");
+            }
+            return;
+        }
+
+        if (response && response.status === "modal shown") {
+            console.log("[Sidepanel] Success! Received confirmation from content script:", response);
+        } else if (response && response.status === "error") {
+            console.error("[Sidepanel] Content script reported an error:", response.message);
+            alert(`An error occurred in the content script: ${response.message}`);
+        } else {
+            console.warn("[Sidepanel] Connection was successful, but received an unexpected or empty response:", response);
+        }
+    });
+}
+
 async function main() {
     await loadState();
 
@@ -435,6 +462,20 @@ async function main() {
 
         // Fetch latest from server in background
         fetchFollowingsFromServer();
+
+        const viewSavedBtn = document.getElementById('view-saved-btn');
+        if (viewSavedBtn) {
+            viewSavedBtn.addEventListener('click', () => {
+                chrome.tabs.query({ active: true, currentWindow: true, url: "*://*.instagram.com/*" }, (tabs) => {
+                    if (tabs.length > 0) {
+                        const targetTabId = tabs[0].id;
+                        sendMessageWithRetries(targetTabId, { action: "showSavedPosts" });
+                    } else {
+                        alert("Please navigate to an Instagram page first.");
+                    }
+                });
+            });
+        }
     } else {
         followList.innerHTML = '<li style="padding:10px;">Error: Client ID not found. Please browse Instagram to register this extension.</li>';
     }

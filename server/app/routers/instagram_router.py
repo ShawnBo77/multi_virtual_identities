@@ -86,6 +86,34 @@ def get_instagram_feed(
     return instagram_service.get_unsent_posts(db=db, client_id=client_id, usernames=usernames, limit=limit)
 
 
+@router.get(
+    "/saved-posts",
+    response_model=List[instagram_schema.InstagramSavedPostResponse],
+    response_model_exclude={"__all__": {"thumbnail_local_path"}},
+    summary="Get All Saved Posts for a Client",
+)
+def get_all_saved_posts(client_id: int = Header(..., alias="Client-ID"), db: Session = Depends(get_db)):
+    """
+    Retrieves a list of all posts saved by the client.
+    Returns a lightweight response with post code and a thumbnail URL.
+    """
+    db_posts = instagram_service.get_saved_posts_for_client(db, client_id=client_id)
+
+    response_posts = []
+    for post in db_posts:
+        thumbnail = None
+        if post.media_items:
+            # Find the first available image URL to use as a thumbnail
+            first_media = post.media_items[0]
+            thumbnail = first_media.image_local_path
+
+        response_posts.append(
+            instagram_schema.InstagramSavedPostResponse(id=post.id, code=post.code, thumbnail_local_path=thumbnail)
+        )
+
+    return response_posts
+
+
 @router.post("/posts/{post_id}/save", status_code=status.HTTP_201_CREATED, summary="Save a Post for the Client")
 def save_post_for_client(post_id: int, client_id: int = Header(..., alias="Client-ID"), db: Session = Depends(get_db)):
     """

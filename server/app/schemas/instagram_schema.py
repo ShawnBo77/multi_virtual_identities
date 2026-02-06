@@ -146,6 +146,23 @@ class InstagramPostBrief(InstagramPostBase):
         from_attributes = True
 
 
+class InstagramSavedPostResponse(BaseModel):
+    id: int
+    code: str
+    thumbnail_local_path: Optional[str] = None
+
+    @computed_field
+    @property
+    def thumbnail_url(self) -> Optional[str]:
+        if self.thumbnail_local_path:
+            path = self.thumbnail_local_path.replace("\\", "/")
+            return f"http://127.0.0.1:8000/{path}"
+        return None
+
+    class Config:
+        from_attributes = True
+
+
 class CredentialCreate(BaseModel):
     username: str
     password: str

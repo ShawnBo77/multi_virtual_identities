@@ -652,6 +652,124 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 });
 
 // ==========================================
+// Saved Posts Modal
+// ==========================================
+
+function createSavedPostsModal() {
+    // Check if modal already exists to prevent duplicates
+    if (document.getElementById('saved-posts-modal-overlay')) {
+        return;
+    }
+
+    const modalOverlay = document.createElement('div');
+    modalOverlay.id = 'saved-posts-modal-overlay';
+
+    modalOverlay.innerHTML = `
+        <div class="saved-posts-modal-content">
+            <div class="saved-posts-modal-header">
+                <h2>Saved Posts</h2>
+                <button id="saved-posts-modal-close-btn">&times;</button>
+            </div>
+            <div class="saved-posts-grid-container">
+                <p style="text-align:center;">Loading...</p>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modalOverlay);
+
+    const closeModal = () => {
+        modalOverlay.classList.remove('visible');
+    };
+
+    // Event listeners for closing the modal
+    modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) { // Only close if clicking on the overlay itself
+            closeModal();
+        }
+    });
+    document.getElementById('saved-posts-modal-close-btn').addEventListener('click', closeModal);
+}
+
+async function showSavedPosts() {
+    // Ensure the base modal structure exists
+    createSavedPostsModal();
+
+    const modalOverlay = document.getElementById('saved-posts-modal-overlay');
+    const gridContainer = modalOverlay.querySelector('.saved-posts-grid-container');
+
+    // Show modal and loading state
+    modalOverlay.classList.add('visible');
+    gridContainer.innerHTML = '<p style="text-align:center;">Loading...</p>';
+
+    if (!CLIENT_ID) {
+        gridContainer.innerHTML = '<p style="text-align:center; color:red;">Error: Client ID not found.</p>';
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/instagram/saved-posts`, {
+            headers: { 'Client-ID': CLIENT_ID }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Server responded with status: ${response.status}`);
+        }
+
+        const posts = await response.json();
+
+        if (posts.length === 0) {
+            gridContainer.innerHTML = '<p style="text-align:center;">You have no saved posts yet.</p>';
+            return;
+        }
+
+        // Create the grid and populate it
+        const grid = document.createElement('div');
+        grid.className = 'saved-posts-grid';
+
+        posts.forEach(post => {
+            const postLink = `https://www.instagram.com/p/${post.code}/`;
+            const thumbnailUrl = post.thumbnail_url || 'https://via.placeholder.com/300'; // Fallback image
+
+            const item = document.createElement('div');
+            item.className = 'saved-post-item';
+            item.innerHTML = `
+                <a href="${postLink}" target="_blank">
+                    <img src="${thumbnailUrl}" alt="Saved post thumbnail">
+                </a>
+            `;
+            grid.appendChild(item);
+        });
+
+        gridContainer.innerHTML = ''; // Clear loading message
+        gridContainer.appendChild(grid);
+
+    } catch (error) {
+        console.error('[IG Injector] Failed to fetch saved posts:', error);
+        gridContainer.innerHTML = `<p style="text-align:center; color:red;">Failed to load saved posts. Please try again later.</p>`;
+    }
+}
+
+// ==========================================
+// Listen for messages from the sidepanel
+// ==========================================
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    // console.log(`[content.js] Message received at ${new Date().toLocaleTimeString()}:`, request);
+
+    if (request.action === "showSavedPosts") {
+        showSavedPosts().then(() => {
+            // console.log("[content.js] 'showSavedPosts' function finished. Sending response.");
+            sendResponse({ status: "modal shown" });
+        }).catch(error => {
+            // console.error("[content.js] Error inside showSavedPosts:", error);
+            sendResponse({ status: "error", message: error.message });
+        });
+
+        return true;
+    }
+});
+
+// ==========================================
 // Initialization
 // ==========================================
 
