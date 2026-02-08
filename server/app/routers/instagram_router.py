@@ -32,8 +32,12 @@ def create_post(payload: dict, db: Session = Depends(get_db)):
     response_model=instagram_schema.InstagramPost,
     summary="Get Post by Code/PK",
 )
-def read_post_by_identifier(identifier: str, db: Session = Depends(get_db)):
-    db_post = instagram_service.get_post_by_code(db, identifier) or instagram_service.get_post_by_pk(db, identifier)
+def get_post_by_identifier(
+    identifier: str, client_id: int = Header(..., alias="Client-ID"), db: Session = Depends(get_db)
+):
+    db_post = instagram_service.get_post_by_code_with_client(
+        db, identifier, client_id
+    ) or instagram_service.get_post_by_pk_with_client(db, identifier, client_id)
     if db_post is None:
         raise HTTPException(status_code=404, detail="Post not found")
     return db_post

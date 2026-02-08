@@ -652,6 +652,183 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 });
 
 // ==========================================
+// Helper Functions
+// ==========================================
+
+function sortMediaItems(mediaItems) {
+    return [...mediaItems].sort((a, b) => {
+        const getIndexFromUrl = (item) => {
+            const url = item.image_local_url || item.video_local_url;
+            if (!url) return 999;
+            try {
+                const filename = url.substring(url.lastIndexOf('/') + 1);
+                const prefix = filename.split('_')[0];
+                const index = parseInt(prefix, 10);
+                return isNaN(index) ? 999 : index;
+            } catch (e) {
+                return 999;
+            }
+        };
+        return getIndexFromUrl(a) - getIndexFromUrl(b);
+    });
+}
+
+
+function bindCarouselEvents(wrapper) {
+    const container = wrapper.querySelector('.carousel-container');
+    const prevBtn = wrapper.querySelector('.nav-btn.prev');
+    const nextBtn = wrapper.querySelector('.nav-btn.next');
+    const dots = wrapper.querySelectorAll('.dot');
+
+    if (!container || !prevBtn || !nextBtn) return; // No carousel to bind
+
+    const getItemWidth = () => container.clientWidth;
+
+    const updateUI = () => {
+        // Debounce or throttle this if performance becomes an issue
+        window.requestAnimationFrame(() => {
+            const scrollLeft = container.scrollLeft;
+            const width = getItemWidth();
+            const scrollWidth = container.scrollWidth;
+            const currentIndex = Math.round(scrollLeft / width);
+
+            prevBtn.classList.toggle('hidden', currentIndex <= 0);
+            nextBtn.classList.toggle('hidden', scrollLeft + width >= scrollWidth - 5);
+
+            if (dots.length > 0) {
+                dots.forEach((dot, idx) => {
+                    dot.classList.toggle('active', idx === currentIndex);
+                });
+            }
+        });
+    };
+
+    prevBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        container.scrollBy({ left: -getItemWidth(), behavior: 'smooth' });
+    });
+
+    nextBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        container.scrollBy({ left: getItemWidth(), behavior: 'smooth' });
+    });
+
+    container.addEventListener('scroll', updateUI);
+    // Initial UI update after a short delay to ensure layout is stable
+    setTimeout(updateUI, 100);
+}
+
+
+// ==========================================
+// Post Detail Modal
+// ==========================================
+
+function createPostDetailModal() {
+    if (document.getElementById('post-detail-modal-overlay')) return;
+
+    const modalOverlay = document.createElement('div');
+    modalOverlay.id = 'post-detail-modal-overlay';
+    modalOverlay.innerHTML = `<div class="post-detail-modal-content"></div>`;
+    document.body.appendChild(modalOverlay);
+
+    modalOverlay.addEventListener('click', (e) => {
+        if (e.target.id === 'post-detail-modal-overlay' || e.target.closest('#post-detail-modal-close-btn')) {
+            modalOverlay.classList.remove('visible');
+        }
+    });
+}
+
+function renderPostDetails(postData, container) {
+    const { owner, media_items, caption_text, like_count, comment_count, code, id, is_saved } = postData;
+
+    const sortedMedia = sortMediaItems(media_items);
+    const hasMultipleMedia = sortedMedia.length > 1;
+
+    const mediaAllHTML = sortedMedia.map(item => {
+        const isVideo = item.media_type === 2 || item.video_local_url;
+        const imageUrl = item.image_local_url || item.image_url || 'https://via.placeholder.com/600';
+        const videoUrl = item.video_local_url || item.video_url;
+
+        if (isVideo && videoUrl) {
+            return `<div class="carousel-item"><div class="video-wrapper"><video src="${videoUrl}" poster="${imageUrl}" autoplay muted loop playsinline class="post-video"></video></div></div>`;
+        } else {
+            return `<div class="carousel-item"><img src="${imageUrl}" alt="Post content"></div>`;
+        }
+    }).join('');
+
+    let navigationHTML = '';
+    if (hasMultipleMedia) {
+        navigationHTML = `
+            <button class="nav-btn prev hidden" type="button">${NAV_ICONS.prev}</button>
+            <button class="nav-btn next" type="button">${NAV_ICONS.next}</button>
+        `;
+    }
+
+    const userProfileUrl = `https://www.instagram.com/${owner.username}/`;
+    const profilePicUrl = owner.profile_pic_local_url || `https://ui-avatars.com/api/?name=${owner.username.charAt(0)}`;
+    const postLink = `https://www.instagram.com/p/${code}/`;
+    const saveButtonIcon = is_saved ? ICONS.saveFilled : ICONS.save;
+
+    container.innerHTML = `
+        <div class="post-detail-media-container">
+            <div class="carousel-wrapper">
+                <div class="carousel-container">${mediaAllHTML}</div>
+                ${navigationHTML}
+            </div>
+        </div>
+        <div class="post-detail-info-container">
+            <header class="post-detail-header">
+                <button id="post-detail-modal-close-btn" style="position: absolute; top: 10px; right: 10px; font-size: 28px; background: none; border: none; color: white; cursor: pointer; z-index: 10;">&times;</button>
+                <a href="${userProfileUrl}" target="_blank"><img class="profile-pic" src="${profilePicUrl}" alt="${owner.username}"></a>
+                <a class="username" href="${userProfileUrl}" target="_blank">${owner.username}</a>
+            </header>
+            <div class="post-detail-scroll-area">
+                <div class="post-detail-caption">
+                    <a href="${userProfileUrl}" target="_blank"><img class="profile-pic" src="${profilePicUrl}" alt="${owner.username}"></a>
+                    <div class="post-detail-caption-text">
+                        <a class="username" href="${userProfileUrl}" target="_blank">${owner.username}</a>
+                        <span>${caption_text || ''}</span>
+                    </div>
+                </div>
+                <div class="post-detail-comments-placeholder">Comments are not available in this view.</div>
+            </div>
+            <footer class="post-detail-footer">
+                 <div class="actions-bar">
+                    <div class="actions-left">
+                        <a class="action-btn" href="${postLink}" target="_blank">${ICONS.like}</a><span class="action-count">${like_count.toLocaleString()}</span>
+                        <a class="action-btn" href="${postLink}" target="_blank">${ICONS.comment}</a><span class="action-count">${comment_count.toLocaleString()}</span>
+                        <button class="action-btn">${ICONS.share}</button>
+                    </div>
+                    <button class="action-btn save" data-post-id="${id}" data-is-saved="${!!is_saved}">${saveButtonIcon}</button>
+                </div>
+            </footer>
+        </div>
+    `;
+
+    bindCarouselEvents(container);
+    container.querySelector('.action-btn.save').addEventListener('click', handleSaveClick);
+}
+
+async function showPostDetailModal(postIdentifier) {
+    createPostDetailModal();
+    const modalOverlay = document.getElementById('post-detail-modal-overlay');
+    const contentContainer = modalOverlay.querySelector('.post-detail-modal-content');
+
+    contentContainer.innerHTML = '<p style="font-size: 18px; text-align: center; color: white; width: 100%; align-self: center;">Loading post...</p>';
+    modalOverlay.classList.add('visible');
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/instagram/posts/${postIdentifier}`, { headers: { 'Client-ID': CLIENT_ID } });
+        if (!response.ok) throw new Error('Failed to fetch post details');
+        const postData = await response.json();
+        renderPostDetails(postData, contentContainer);
+    } catch (error) {
+        console.error("Error fetching post details:", error);
+        contentContainer.innerHTML = '<p style="color:red; text-align:center; width: 100%; align-self: center;">Could not load the post.</p>';
+    }
+}
+
+// ==========================================
 // Saved Posts Modal
 // ==========================================
 
@@ -728,13 +905,12 @@ async function showSavedPosts() {
         grid.className = 'saved-posts-grid';
 
         posts.forEach(post => {
-            const postLink = `https://www.instagram.com/p/${post.code}/`;
             const thumbnailUrl = post.thumbnail_url || 'https://via.placeholder.com/300'; // Fallback image
 
             const item = document.createElement('div');
             item.className = 'saved-post-item';
             item.innerHTML = `
-                <a href="${postLink}" target="_blank">
+                <a href="#" data-post-code="${post.code}">
                     <img src="${thumbnailUrl}" alt="Saved post thumbnail">
                 </a>
             `;
@@ -743,6 +919,14 @@ async function showSavedPosts() {
 
         gridContainer.innerHTML = ''; // Clear loading message
         gridContainer.appendChild(grid);
+
+        gridContainer.addEventListener('click', (event) => {
+            const link = event.target.closest('a');
+            if (link && link.dataset.postCode) {
+                event.preventDefault(); // Stop the link from opening a new tab
+                showPostDetailModal(link.dataset.postCode);
+            }
+        });
 
     } catch (error) {
         console.error('[IG Injector] Failed to fetch saved posts:', error);

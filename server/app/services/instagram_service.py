@@ -1,4 +1,4 @@
-from sqlalchemy import and_
+from sqlalchemy import and_, exists
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
@@ -64,6 +64,53 @@ def get_post_by_pk(db: Session, pk: str):
 def get_post_by_code(db: Session, code: str):
     return db.query(instagram_model.InstagramPost).filter(instagram_model.InstagramPost.code == code).first()
 
+
+def get_post_by_pk_with_client(db: Session, pk: str, client_id: int):
+    """
+    Retrieves a single post by its PK, including its saved status for the given client.
+    """
+    saved_subquery = exists().where(
+        and_(
+            instagram_model.InstagramSavedPost.client_id == client_id,
+            instagram_model.InstagramSavedPost.post_id == instagram_model.InstagramPost.id,
+        )
+    )
+    result = (
+        db.query(instagram_model.InstagramPost, saved_subquery.label("is_saved"))
+        .filter(instagram_model.InstagramPost.pk == pk)
+        .first()
+    )
+
+    if not result:
+        return None
+
+    post, is_saved = result
+    post.is_saved = is_saved
+    return post
+
+
+def get_post_by_code_with_client(db: Session, code: str, client_id: int):
+    """
+    Retrieves a single post by its code, including its saved status for the given client.
+    """
+    saved_subquery = exists().where(
+        and_(
+            instagram_model.InstagramSavedPost.client_id == client_id,
+            instagram_model.InstagramSavedPost.post_id == instagram_model.InstagramPost.id,
+        )
+    )
+    result = (
+        db.query(instagram_model.InstagramPost, saved_subquery.label("is_saved"))
+        .filter(instagram_model.InstagramPost.code == code)
+        .first()
+    )
+
+    if not result:
+        return None
+
+    post, is_saved = result
+    post.is_saved = is_saved
+    return post
 
 def get_posts_by_user_pk(
     db: Session, user_pk: str, skip: int = 0, limit: int = 10

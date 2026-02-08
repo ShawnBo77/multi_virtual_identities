@@ -455,15 +455,14 @@
 }
 
 .saved-posts-modal-content {
-    background-color: var(--ig-primary-background);
-    color: var(--ig-primary-text);
+    background-color: #FFFFFF;
+    color: #262626;
     width: 90%;
     max-width: 935px;
     /* Instagram's standard max width */
     height: 85%;
     max-height: 800px;
     border-radius: 12px;
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
     display: flex;
     flex-direction: column;
     animation: slideUp 0.3s ease-out;
@@ -491,6 +490,7 @@
 }
 
 .saved-posts-modal-header h2 {
+    color: #262626;
     font-size: 16px;
     font-weight: 600;
     margin: 0;
@@ -498,10 +498,11 @@
 
 #saved-posts-modal-close-btn {
     background: none;
+    color: #262626;
     border: none;
     font-size: 24px;
     font-weight: bold;
-    color: var(--ig-primary-text);
+    color: #262626;
     cursor: pointer;
     padding: 5px;
 }
@@ -534,4 +535,155 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+/* =========================================
+   Post Detail Modal
+   ========================================= */
+
+#post-detail-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.65);
+    z-index: 9999;
+    /* Higher z-index to appear above the first modal */
+    display: none;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease;
+}
+
+#post-detail-modal-overlay.visible {
+    display: flex;
+}
+
+.post-detail-modal-content {
+    width: 90%;
+    max-width: 950px;
+    height: 90%;
+    max-height: 700px;
+    background-color: var(--ig-primary-background);
+    border-radius: 8px;
+    display: flex;
+    overflow: hidden;
+    animation: slideUp 0.3s ease-out;
+}
+
+.post-detail-media-container {
+    flex: 1;
+    background-color: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    min-width: 400px;
+}
+
+/* We can reuse the carousel styles from the main feed post */
+.post-detail-media-container .carousel-wrapper {
+    width: 100%;
+    height: 100%;
+}
+
+.post-detail-media-container .carousel-container {
+    height: 100%;
+}
+
+.post-detail-media-container .carousel-item {
+    height: 100%;
+}
+
+.post-detail-media-container .carousel-item img,
+.post-detail-media-container .carousel-item video {
+    height: 100%;
+    width: 100%;
+    object-fit: contain;
+    /* Use contain to see the whole image/video */
+    border: none;
+    border-radius: 0;
+}
+
+
+.post-detail-info-container {
+    width: 350px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background-color: #FFFFFF;
+    color:#262626;
+    border-left: 1px solid #dbdbdb;
+}
+
+.post-detail-header {
+    display: flex;
+    align-items: center;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--ig-separator);
+}
+
+.post-detail-header .profile-pic {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    margin-right: 12px;
+}
+
+.post-detail-header .username {
+    font-weight: 600;
+    color: var(--ig-primary-text);
+    text-decoration: none;
+}
+
+.post-detail-header .username:hover {
+    opacity: 0.7;
+}
+
+.post-detail-scroll-area {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.post-detail-caption {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 20px;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.post-detail-caption .profile-pic {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+.post-detail-caption-text .username {
+    font-weight: 600;
+    margin-right: 5px;
+    color: var(--ig-primary-text);
+    text-decoration: none;
+}
+
+.post-detail-comments-placeholder {
+    text-align: center;
+    color: #888;
+    padding: 20px 0;
+    font-size: 14px;
+}
+
+.post-detail-footer {
+    border-top: 1px solid var(--ig-separator);
+    padding: 4px 8px;
+    flex-shrink: 0;
+}
+
+/* Reusing action bar styles */
+.post-detail-footer .actions-bar {
+    padding: 4px 0;
 }
