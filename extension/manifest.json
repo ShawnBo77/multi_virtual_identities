@@ -23,7 +23,15 @@
   "content_scripts": [
     {
       "matches": ["https://*.instagram.com/*"],
-      "js": ["content.js"],
+      "js": [
+        "common/constant.js",
+        "common/client.js",
+        "platforms/instagram/icons.js",
+        "platforms/instagram/following.js",
+        "platforms/instagram/post.js",
+        "platforms/instagram/anonFollow.js",
+        "content.js"
+      ],
       "css": ["style.css"],
       "run_at": "document_end"
     }
