@@ -1,39 +1,34 @@
 {
-  "manifest_version": 3,
-  "name": "Social Shield",
-  "version": "1.0",
-   "permissions": [
-    "storage",
-    "sidePanel",
-    "tabs"
-  ],
-  "action": {
-    "default_title": "Social Shield"
-  },
-  "side_panel": {
-    "default_path": "sidepanel/sidepanel.html"
-  },
-  "background": {
-    "service_worker": "background.js"
-  },
-  "host_permissions": [
-    "http://127.0.0.1:8000/*",
-    "https://*.instagram.com/*"
-  ],
-  "content_scripts": [
-    {
-      "matches": ["https://*.instagram.com/*"],
-      "js": [
-        "common/constant.js",
-        "common/client.js",
-        "platforms/instagram/icons.js",
-        "platforms/instagram/following.js",
-        "platforms/instagram/post.js",
-        "platforms/instagram/anonFollow.js",
-        "content.js"
-      ],
-      "css": ["style.css"],
-      "run_at": "document_end"
-    }
-  ]
+    "manifest_version": 3,
+    "name": "Social Shield",
+    "version": "1.0",
+    "permissions": ["storage", "sidePanel", "tabs", "alarms"],
+    "action": {
+        "default_title": "Social Shield"
+    },
+    "side_panel": {
+        "default_path": "sidepanel/sidepanel.html"
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "host_permissions": [
+        "http://127.0.0.1:8000/*",
+        "https://*.instagram.com/*"
+    ],
+    "content_scripts": [
+        {
+            "matches": ["https://*.instagram.com/*"],
+            "js": [
+                "common/constant.js",
+                "common/client.js",
+                "platforms/instagram/icons.js",
+                "platforms/instagram/follow.js",
+                "platforms/instagram/post.js",
+                "content.js"
+            ],
+            "css": ["style.css"],
+            "run_at": "document_end"
+        }
+    ]
 }

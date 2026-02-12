@@ -5,11 +5,13 @@ async function fetchFeed(limit = 2) {
     if (!CLIENT_ID) return [];
     const url = `${API_BASE_URL}/instagram/feed?limit=${limit}`;
     try {
-        const response = await fetch(url, { headers: { 'Client-ID': CLIENT_ID } });
+        const response = await fetch(url, {
+            headers: { "Client-ID": CLIENT_ID },
+        });
         if (!response.ok) return [];
         return await response.json();
     } catch (error) {
-        console.error('[IG Injector] Fetch feed failed:', error);
+        console.error("[IG Injector] Fetch feed failed:", error);
         return [];
     }
 }
@@ -17,7 +19,7 @@ async function fetchFeed(limit = 2) {
 async function handleSaveClick(event) {
     const saveButton = event.currentTarget;
     const postId = saveButton.dataset.postId;
-    let isSaved = saveButton.dataset.isSaved === 'true';
+    let isSaved = saveButton.dataset.isSaved === "true";
 
     if (!CLIENT_ID || !postId) return;
 
@@ -25,11 +27,11 @@ async function handleSaveClick(event) {
 
     try {
         const url = `${API_BASE_URL}/instagram/posts/${postId}/save`;
-        const method = isSaved ? 'DELETE' : 'POST';
+        const method = isSaved ? "DELETE" : "POST";
 
         const response = await fetch(url, {
             method: method,
-            headers: { 'Client-ID': CLIENT_ID }
+            headers: { "Client-ID": CLIENT_ID },
         });
 
         if (response.ok) {
@@ -37,10 +39,12 @@ async function handleSaveClick(event) {
             saveButton.dataset.isSaved = isSaved;
             saveButton.innerHTML = isSaved ? ICONS.saveFilled : ICONS.save;
         } else {
-            console.error('[IG Injector] Failed to update save state on server.');
+            console.error(
+                "[IG Injector] Failed to update save state on server.",
+            );
         }
     } catch (error) {
-        console.error('[IG Injector] Network error during save/unsave:', error);
+        console.error("[IG Injector] Network error during save/unsave:", error);
     } finally {
         saveButton.disabled = false;
     }
@@ -56,9 +60,9 @@ function sortMediaItems(mediaItems) {
 
             try {
                 // Get filename (e.g., 00_12345.jpg)
-                const filename = url.substring(url.lastIndexOf('/') + 1);
+                const filename = url.substring(url.lastIndexOf("/") + 1);
                 // Get part before underscore (e.g., 00)
-                const prefix = filename.split('_')[0];
+                const prefix = filename.split("_")[0];
                 // Convert to number
                 const index = parseInt(prefix, 10);
                 return isNaN(index) ? 999 : index;
@@ -72,10 +76,10 @@ function sortMediaItems(mediaItems) {
 }
 
 function bindCarouselEvents(wrapper) {
-    const container = wrapper.querySelector('.carousel-container');
-    const prevBtn = wrapper.querySelector('.nav-btn.prev');
-    const nextBtn = wrapper.querySelector('.nav-btn.next');
-    const dots = wrapper.querySelectorAll('.dot');
+    const container = wrapper.querySelector(".carousel-container");
+    const prevBtn = wrapper.querySelector(".nav-btn.prev");
+    const nextBtn = wrapper.querySelector(".nav-btn.next");
+    const dots = wrapper.querySelectorAll(".dot");
 
     if (!container || !prevBtn || !nextBtn) return; // No carousel to bind
 
@@ -89,41 +93,46 @@ function bindCarouselEvents(wrapper) {
             const scrollWidth = container.scrollWidth;
             const currentIndex = Math.round(scrollLeft / width);
 
-            prevBtn.classList.toggle('hidden', currentIndex <= 0);
-            nextBtn.classList.toggle('hidden', scrollLeft + width >= scrollWidth - 5);
+            prevBtn.classList.toggle("hidden", currentIndex <= 0);
+            nextBtn.classList.toggle(
+                "hidden",
+                scrollLeft + width >= scrollWidth - 5,
+            );
 
             if (dots.length > 0) {
                 dots.forEach((dot, idx) => {
-                    dot.classList.toggle('active', idx === currentIndex);
+                    dot.classList.toggle("active", idx === currentIndex);
                 });
             }
         });
     };
 
-    prevBtn.addEventListener('click', (e) => {
+    prevBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        container.scrollBy({ left: -getItemWidth(), behavior: 'smooth' });
+        container.scrollBy({ left: -getItemWidth(), behavior: "smooth" });
     });
 
-    nextBtn.addEventListener('click', (e) => {
+    nextBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        container.scrollBy({ left: getItemWidth(), behavior: 'smooth' });
+        container.scrollBy({ left: getItemWidth(), behavior: "smooth" });
     });
 
-    container.addEventListener('scroll', updateUI);
+    container.addEventListener("scroll", updateUI);
     // Initial UI update after a short delay to ensure layout is stable
     setTimeout(updateUI, 100);
 }
 
 function createCustomPostElement(data) {
-    const postWrapper = document.createElement('article');
-    postWrapper.className = 'custom-post-wrapper';
+    const postWrapper = document.createElement("article");
+    postWrapper.className = "custom-post-wrapper";
     postWrapper.id = `custom-post-${data.code}`;
 
     const { owner, media_items } = data;
     const username = owner.username;
     const userProfileUrl = `https://www.instagram.com/${username}/`;
-    const profilePicUrl = owner.profile_pic_local_url || `https://ui-avatars.com/api/?name=${username.charAt(0)}&background=random&color=fff&size=32`;
+    const profilePicUrl =
+        owner.profile_pic_local_url ||
+        `https://ui-avatars.com/api/?name=${username.charAt(0)}&background=random&color=fff&size=32`;
     const postDate = new Date(data.taken_at);
     const dataString = `${postDate.getFullYear()}/${postDate.getMonth() + 1}/${postDate.getDate()}`;
     const postLink = `https://www.instagram.com/p/${data.code}/`;
@@ -134,17 +143,19 @@ function createCustomPostElement(data) {
     const hasMultipleMedia = sortedMedia.length > 1;
 
     // Generate HTML for media items
-    const mediaAllHTML = sortedMedia.map(item => {
-        const isVideo = item.media_type === 2 || (item.video_local_url !== null);
-        const imageUrl = item.image_local_url || item.image_url;
-        const videoUrl = item.video_local_url || item.video_url;
+    const mediaAllHTML = sortedMedia
+        .map((item) => {
+            const isVideo =
+                item.media_type === 2 || item.video_local_url !== null;
+            const imageUrl = item.image_local_url || item.image_url;
+            const videoUrl = item.video_local_url || item.video_url;
 
-        let contentHTML = '';
+            let contentHTML = "";
 
-        if (isVideo && videoUrl) {
-            // Structure: Wrapper + Video + Sound Button
-            // Use 'data-src' to prevent immediate loading for CSP bypass logic
-            contentHTML = `
+            if (isVideo && videoUrl) {
+                // Structure: Wrapper + Video + Sound Button
+                // Use 'data-src' to prevent immediate loading for CSP bypass logic
+                contentHTML = `
                 <div class="video-wrapper">
                     <video data-src="${videoUrl}" poster="${imageUrl}" autoplay muted loop playsinline class="post-video"></video>
                     <button class="sound-btn" type="button">
@@ -152,42 +163,53 @@ function createCustomPostElement(data) {
                     </button>
                 </div>`;
 
-            // Async Blob Loader (CSP Bypass)
-            setTimeout(async () => {
-                // Find the specific video element by ID and data-src
-                const wrapper = document.getElementById(`custom-post-${data.code}`);
-                if (!wrapper) return;
+                // Async Blob Loader (CSP Bypass)
+                setTimeout(async () => {
+                    // Find the specific video element by ID and data-src
+                    const wrapper = document.getElementById(
+                        `custom-post-${data.code}`,
+                    );
+                    if (!wrapper) return;
 
-                const videoEl = wrapper.querySelector(`video[data-src="${videoUrl}"]`);
+                    const videoEl = wrapper.querySelector(
+                        `video[data-src="${videoUrl}"]`,
+                    );
 
-                if (videoEl) {
-                    try {
-                        // Fetch video as Blob to bypass CSP restrictions on localhost
-                        const req = await fetch(videoUrl);
-                        const blob = await req.blob();
-                        const blobUrl = URL.createObjectURL(blob);
-                        videoEl.src = blobUrl;
-                    } catch (e) {
-                        console.error("[IG Injector] Blob load failed, falling back to original URL:", e);
-                        videoEl.src = videoUrl;
+                    if (videoEl) {
+                        try {
+                            // Fetch video as Blob to bypass CSP restrictions on localhost
+                            const req = await fetch(videoUrl);
+                            const blob = await req.blob();
+                            const blobUrl = URL.createObjectURL(blob);
+                            videoEl.src = blobUrl;
+                        } catch (e) {
+                            console.error(
+                                "[IG Injector] Blob load failed, falling back to original URL:",
+                                e,
+                            );
+                            videoEl.src = videoUrl;
+                        }
                     }
-                }
-            }, 0);
-        } else {
-            contentHTML = `<img src="${imageUrl}" alt="Post content">`;
-        }
+                }, 0);
+            } else {
+                contentHTML = `<img src="${imageUrl}" alt="Post content">`;
+            }
 
-        return `<div class="carousel-item">${contentHTML}</div>`;
-    }).join('');
+            return `<div class="carousel-item">${contentHTML}</div>`;
+        })
+        .join("");
 
     // Generate Navigation Elements (Arrows & Dots)
-    let navigationHTML = '';
+    let navigationHTML = "";
     if (hasMultipleMedia) {
         const prevIcon = NAV_ICONS.prev;
         const nextIcon = NAV_ICONS.next;
-        const dotsHTML = sortedMedia.map((_, index) =>
-            `<div class="dot ${index === 0 ? 'active' : ''}" data-index="${index}"></div>`
-        ).join('');
+        const dotsHTML = sortedMedia
+            .map(
+                (_, index) =>
+                    `<div class="dot ${index === 0 ? "active" : ""}" data-index="${index}"></div>`,
+            )
+            .join("");
 
         navigationHTML = `
             <button class="nav-btn prev hidden" type="button">${prevIcon}</button>
@@ -196,7 +218,7 @@ function createCustomPostElement(data) {
         `;
     }
 
-    const captionText = (data.caption_text || '').replace(/\n/g, '<br>');
+    const captionText = (data.caption_text || "").replace(/\n/g, "<br>");
     const saveButtonIcon = data.is_saved ? ICONS.saveFilled : ICONS.save;
 
     postWrapper.innerHTML = `
@@ -242,23 +264,23 @@ function createCustomPostElement(data) {
 
     // Bind Events for Carousel Navigation (if multiple items exist)
     if (hasMultipleMedia) {
-        bindCarouselEvents(postWrapper)
+        bindCarouselEvents(postWrapper);
     }
 
-    const saveButton = postWrapper.querySelector('.action-btn.save');
+    const saveButton = postWrapper.querySelector(".action-btn.save");
     if (saveButton) {
-        saveButton.addEventListener('click', handleSaveClick);
+        saveButton.addEventListener("click", handleSaveClick);
     }
 
-    const soundButtons = postWrapper.querySelectorAll('.sound-btn');
-    soundButtons.forEach(btn => {
-        btn.addEventListener('click', (e) => {
+    const soundButtons = postWrapper.querySelectorAll(".sound-btn");
+    soundButtons.forEach((btn) => {
+        btn.addEventListener("click", (e) => {
             e.stopPropagation();
             e.preventDefault();
 
             // Find the video within the same wrapper
-            const wrapper = btn.closest('.video-wrapper');
-            const video = wrapper.querySelector('video');
+            const wrapper = btn.closest(".video-wrapper");
+            const video = wrapper.querySelector("video");
 
             if (video) {
                 video.muted = !video.muted; // Toggle mute state
@@ -281,18 +303,18 @@ async function injectPost() {
     const FEED_LIMIT = 2;
 
     // Only inject on the Instagram home page ('/')
-    if (window.location.pathname !== '/') {
+    if (window.location.pathname !== "/") {
         return;
     }
 
     // Check if we have already injected posts
-    if (document.querySelector('.custom-post-wrapper')) {
+    if (document.querySelector(".custom-post-wrapper")) {
         clearInterval(injectionInterval);
         return;
     }
 
     // Find the feed container
-    const firstPostArticle = document.querySelector('main article');
+    const firstPostArticle = document.querySelector("main article");
     if (!firstPostArticle) return;
 
     const feedContainer = firstPostArticle.parentElement?.parentElement;
@@ -300,19 +322,21 @@ async function injectPost() {
 
     // Stop interval processing
     clearInterval(injectionInterval);
-    console.log(`[IG Injector] Checking for new feed posts (Limit: ${FEED_LIMIT})...`);
+    console.log(
+        `[IG Injector] Checking for new feed posts (Limit: ${FEED_LIMIT})...`,
+    );
 
     const allPosts = await fetchFeed(FEED_LIMIT);
 
     if (allPosts.length === 0) {
-        console.log('[IG Injector] No new unsent posts found.');
+        console.log("[IG Injector] No new unsent posts found.");
         return;
     }
 
     // Reverse the array so that the newest post is appearing at the top
     const postsToInject = [...allPosts].reverse();
 
-    postsToInject.forEach(postData => {
+    postsToInject.forEach((postData) => {
         if (!postData || !postData.code) return;
 
         // Double check duplicate injection by ID
@@ -322,7 +346,10 @@ async function injectPost() {
         }
     });
 
-    console.log(`%c[IG Injector] Successfully injected ${allPosts.length} posts!`, 'color: green; font-weight: bold;');
+    console.log(
+        `%c[IG Injector] Successfully injected ${allPosts.length} posts!`,
+        "color: green; font-weight: bold;",
+    );
 }
 
 // ==========================================
@@ -331,12 +358,12 @@ async function injectPost() {
 
 function createSavedPostsModal() {
     // Check if modal already exists to prevent duplicates
-    if (document.getElementById('saved-posts-modal-overlay')) {
+    if (document.getElementById("saved-posts-modal-overlay")) {
         return;
     }
 
-    const modalOverlay = document.createElement('div');
-    modalOverlay.id = 'saved-posts-modal-overlay';
+    const modalOverlay = document.createElement("div");
+    modalOverlay.id = "saved-posts-modal-overlay";
 
     modalOverlay.innerHTML = `
         <div class="saved-posts-modal-content">
@@ -353,37 +380,43 @@ function createSavedPostsModal() {
     document.body.appendChild(modalOverlay);
 
     const closeModal = () => {
-        modalOverlay.classList.remove('visible');
+        modalOverlay.classList.remove("visible");
     };
 
     // Event listeners for closing the modal
-    modalOverlay.addEventListener('click', (e) => {
-        if (e.target === modalOverlay) { // Only close if clicking on the overlay itself
+    modalOverlay.addEventListener("click", (e) => {
+        if (e.target === modalOverlay) {
+            // Only close if clicking on the overlay itself
             closeModal();
         }
     });
-    document.getElementById('saved-posts-modal-close-btn').addEventListener('click', closeModal);
+    document
+        .getElementById("saved-posts-modal-close-btn")
+        .addEventListener("click", closeModal);
 }
 
-async function showSavedPosts() {
+async function renderSavedPosts() {
     // Ensure the base modal structure exists
     createSavedPostsModal();
 
-    const modalOverlay = document.getElementById('saved-posts-modal-overlay');
-    const gridContainer = modalOverlay.querySelector('.saved-posts-grid-container');
+    const modalOverlay = document.getElementById("saved-posts-modal-overlay");
+    const gridContainer = modalOverlay.querySelector(
+        ".saved-posts-grid-container",
+    );
 
     // Show modal and loading state
-    modalOverlay.classList.add('visible');
+    modalOverlay.classList.add("visible");
     gridContainer.innerHTML = '<p style="text-align:center;">Loading...</p>';
 
     if (!CLIENT_ID) {
-        gridContainer.innerHTML = '<p style="text-align:center; color:red;">Error: Client ID not found.</p>';
+        gridContainer.innerHTML =
+            '<p style="text-align:center; color:red;">Error: Client ID not found.</p>';
         return;
     }
 
     try {
         const response = await fetch(`${API_BASE_URL}/instagram/saved-posts`, {
-            headers: { 'Client-ID': CLIENT_ID }
+            headers: { "Client-ID": CLIENT_ID },
         });
 
         if (!response.ok) {
@@ -393,19 +426,21 @@ async function showSavedPosts() {
         const posts = await response.json();
 
         if (posts.length === 0) {
-            gridContainer.innerHTML = '<p style="text-align:center;">You have no saved posts yet.</p>';
+            gridContainer.innerHTML =
+                '<p style="text-align:center;">You have no saved posts yet.</p>';
             return;
         }
 
         // Create the grid and populate it
-        const grid = document.createElement('div');
-        grid.className = 'saved-posts-grid';
+        const grid = document.createElement("div");
+        grid.className = "saved-posts-grid";
 
-        posts.forEach(post => {
-            const thumbnailUrl = post.thumbnail_url || 'https://via.placeholder.com/300'; // Fallback image
+        posts.forEach((post) => {
+            const thumbnailUrl =
+                post.thumbnail_url || "https://via.placeholder.com/300"; // Fallback image
 
-            const item = document.createElement('div');
-            item.className = 'saved-post-item';
+            const item = document.createElement("div");
+            item.className = "saved-post-item";
             item.innerHTML = `
                 <a href="#" data-post-code="${post.code}">
                     <img src="${thumbnailUrl}" alt="Saved post thumbnail">
@@ -414,19 +449,18 @@ async function showSavedPosts() {
             grid.appendChild(item);
         });
 
-        gridContainer.innerHTML = ''; // Clear loading message
+        gridContainer.innerHTML = ""; // Clear loading message
         gridContainer.appendChild(grid);
 
-        gridContainer.addEventListener('click', (event) => {
-            const link = event.target.closest('a');
+        gridContainer.addEventListener("click", (event) => {
+            const link = event.target.closest("a");
             if (link && link.dataset.postCode) {
                 event.preventDefault(); // Stop the link from opening a new tab
                 showPostDetailModal(link.dataset.postCode);
             }
         });
-
     } catch (error) {
-        console.error('[IG Injector] Failed to fetch saved posts:', error);
+        console.error("[IG Injector] Failed to fetch saved posts:", error);
         gridContainer.innerHTML = `<p style="text-align:center; color:red;">Failed to load saved posts. Please try again later.</p>`;
     }
 }
@@ -435,57 +469,83 @@ async function showSavedPosts() {
 // Saved Post
 // ==========================================
 function createPostDetailModal() {
-    if (document.getElementById('post-detail-modal-overlay')) return;
+    if (document.getElementById("post-detail-modal-overlay")) return;
 
-    const modalOverlay = document.createElement('div');
-    modalOverlay.id = 'post-detail-modal-overlay';
+    const modalOverlay = document.createElement("div");
+    modalOverlay.id = "post-detail-modal-overlay";
     modalOverlay.innerHTML = `<div class="post-detail-modal-content"></div>`;
     document.body.appendChild(modalOverlay);
 
-    modalOverlay.addEventListener('click', (e) => {
-        if (e.target.id === 'post-detail-modal-overlay' || e.target.closest('#post-detail-modal-close-btn')) {
-            modalOverlay.classList.remove('visible');
+    modalOverlay.addEventListener("click", (e) => {
+        if (
+            e.target.id === "post-detail-modal-overlay" ||
+            e.target.closest("#post-detail-modal-close-btn")
+        ) {
+            modalOverlay.classList.remove("visible");
         }
     });
 }
 
 function renderPostDetails(postData, container) {
-    const { owner, media_items, caption_text, like_count, comment_count, code, id, is_saved } = postData;
+    const {
+        owner,
+        media_items,
+        caption_text,
+        like_count,
+        comment_count,
+        code,
+        id,
+        is_saved,
+    } = postData;
 
     const sortedMedia = sortMediaItems(media_items);
     const hasMultipleMedia = sortedMedia.length > 1;
 
     // the HTML for all media items.
     // For videos, only set the 'data-src' attribute.
-    const mediaAllHTML = sortedMedia.map(item => {
-        const isVideo = item.media_type === 2 || item.video_local_url;
-        const imageUrl = item.image_local_url || item.image_url || 'https://via.placeholder.com/600';
-        const videoUrl = item.video_local_url || item.video_url;
+    const mediaAllHTML = sortedMedia
+        .map((item) => {
+            const isVideo = item.media_type === 2 || item.video_local_url;
+            const imageUrl =
+                item.image_local_url ||
+                item.image_url ||
+                "https://via.placeholder.com/600";
+            const videoUrl = item.video_local_url || item.video_url;
 
-        if (isVideo && videoUrl) {
-            return `<div class="carousel-item">
+            if (isVideo && videoUrl) {
+                return `<div class="carousel-item">
                         <div class="video-wrapper">
                             <video data-src="${videoUrl}" poster="${imageUrl}" autoplay muted loop playsinline class="post-video"></video>
                             <button class="sound-btn" type="button">${ICONS.soundOn}</button>
                         </div>
                     </div>`;
-        } else {
-            return `<div class="carousel-item"><img src="${imageUrl}" alt="Post content"></div>`;
-        }
-    }).join('');
+            } else {
+                return `<div class="carousel-item"><img src="${imageUrl}" alt="Post content"></div>`;
+            }
+        })
+        .join("");
 
-    const dotsHTML = hasMultipleMedia ? sortedMedia.map((_, index) =>
-        `<div class="dot ${index === 0 ? 'active' : ''}" data-index="${index}"></div>`
-    ).join('') : '';
+    const dotsHTML = hasMultipleMedia
+        ? sortedMedia
+              .map(
+                  (_, index) =>
+                      `<div class="dot ${index === 0 ? "active" : ""}" data-index="${index}"></div>`,
+              )
+              .join("")
+        : "";
 
-    const navigationHTML = hasMultipleMedia ? `
+    const navigationHTML = hasMultipleMedia
+        ? `
         <button class="nav-btn prev hidden" type="button">${NAV_ICONS.prev}</button>
         <button class="nav-btn next" type="button">${NAV_ICONS.next}</button>
         <div class="dots-container">${dotsHTML}</div>
-    ` : '';
+    `
+        : "";
 
     const userProfileUrl = `https://www.instagram.com/${owner.username}/`;
-    const profilePicUrl = owner.profile_pic_local_url || `https://ui-avatars.com/api/?name=${owner.username.charAt(0)}`;
+    const profilePicUrl =
+        owner.profile_pic_local_url ||
+        `https://ui-avatars.com/api/?name=${owner.username.charAt(0)}`;
     const postLink = `https://www.instagram.com/p/${code}/`;
     const saveButtonIcon = is_saved ? ICONS.saveFilled : ICONS.save;
 
@@ -508,7 +568,7 @@ function renderPostDetails(postData, container) {
                     <a href="${userProfileUrl}" target="_blank"><img class="profile-pic" src="${profilePicUrl}" alt="${owner.username}"></a>
                     <div class="post-detail-caption-text">
                         <a class="username" href="${userProfileUrl}" target="_blank">${owner.username}</a>
-                        <span>${caption_text || ''}</span>
+                        <span>${caption_text || ""}</span>
                     </div>
                 </div>
                 <div class="post-detail-comments-placeholder">Comments are not available in this view.</div>
@@ -527,8 +587,8 @@ function renderPostDetails(postData, container) {
     `;
 
     // AFTER the HTML is rendered, find the video elements and load them.
-    const videoElements = container.querySelectorAll('video[data-src]');
-    videoElements.forEach(videoEl => {
+    const videoElements = container.querySelectorAll("video[data-src]");
+    videoElements.forEach((videoEl) => {
         const videoUrl = videoEl.dataset.src;
         if (videoUrl) {
             (async () => {
@@ -539,7 +599,10 @@ function renderPostDetails(postData, container) {
                     const blobUrl = URL.createObjectURL(blob);
                     videoEl.src = blobUrl;
                 } catch (e) {
-                    console.error("[IG Injector] Blob load failed for modal video, falling back to original URL:", e);
+                    console.error(
+                        "[IG Injector] Blob load failed for modal video, falling back to original URL:",
+                        e,
+                    );
                     videoEl.src = videoUrl;
                 }
             })();
@@ -547,13 +610,15 @@ function renderPostDetails(postData, container) {
     });
 
     bindCarouselEvents(container);
-    container.querySelector('.action-btn.save').addEventListener('click', handleSaveClick);
+    container
+        .querySelector(".action-btn.save")
+        .addEventListener("click", handleSaveClick);
 
-    const soundButtons = container.querySelectorAll('.sound-btn');
-    soundButtons.forEach(btn => {
-        btn.addEventListener('click', (e) => {
+    const soundButtons = container.querySelectorAll(".sound-btn");
+    soundButtons.forEach((btn) => {
+        btn.addEventListener("click", (e) => {
             e.stopPropagation();
-            const video = btn.closest('.video-wrapper')?.querySelector('video');
+            const video = btn.closest(".video-wrapper")?.querySelector("video");
             if (video) {
                 video.muted = !video.muted;
                 btn.innerHTML = video.muted ? ICONS.soundOn : ICONS.soundOff;
@@ -564,19 +629,26 @@ function renderPostDetails(postData, container) {
 
 async function showPostDetailModal(postIdentifier) {
     createPostDetailModal();
-    const modalOverlay = document.getElementById('post-detail-modal-overlay');
-    const contentContainer = modalOverlay.querySelector('.post-detail-modal-content');
+    const modalOverlay = document.getElementById("post-detail-modal-overlay");
+    const contentContainer = modalOverlay.querySelector(
+        ".post-detail-modal-content",
+    );
 
-    contentContainer.innerHTML = '<p style="font-size: 18px; text-align: center; color: white; width: 100%; align-self: center;">Loading post...</p>';
-    modalOverlay.classList.add('visible');
+    contentContainer.innerHTML =
+        '<p style="font-size: 18px; text-align: center; color: white; width: 100%; align-self: center;">Loading post...</p>';
+    modalOverlay.classList.add("visible");
 
     try {
-        const response = await fetch(`${API_BASE_URL}/instagram/posts/${postIdentifier}`, { headers: { 'Client-ID': CLIENT_ID } });
-        if (!response.ok) throw new Error('Failed to fetch post details');
+        const response = await fetch(
+            `${API_BASE_URL}/instagram/posts/${postIdentifier}`,
+            { headers: { "Client-ID": CLIENT_ID } },
+        );
+        if (!response.ok) throw new Error("Failed to fetch post details");
         const postData = await response.json();
         renderPostDetails(postData, contentContainer);
     } catch (error) {
         console.error("Error fetching post details:", error);
-        contentContainer.innerHTML = '<p style="color:red; text-align:center; width: 100%; align-self: center;">Could not load the post.</p>';
+        contentContainer.innerHTML =
+            '<p style="color:red; text-align:center; width: 100%; align-self: center;">Could not load the post.</p>';
     }
 }
