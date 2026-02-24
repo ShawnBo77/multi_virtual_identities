@@ -115,12 +115,47 @@ h1 {
     display: block;
 }
 
+.cred-section-header {
+    font-weight: bold;
+    color: #555;
+    background-color: #f7f7f7;
+    padding: 6px 12px;
+    margin-top: 10px;
+    border-top: 1px solid #ddd;
+    border-bottom: 1px solid #ddd;
+}
+
+.cred-section-header:first-child {
+    margin-top: 0;
+}
+
 .cred-item {
     display: flex;
-    justify-content: space-between;
-    padding: 5px;
+    align-items: center;
+    padding: 8px 12px;
     border-bottom: 1px solid #eee;
-    font-size: 12px;
+}
+
+.cred-username {
+    /* Allow this element to grow and take up all available space */
+    flex-grow: 1;
+    /* Prevent the username from wrapping to a new line */
+    white-space: nowrap;
+    /* Hide any part of the username that overflows its container */
+    overflow: hidden;
+    /* If the username is too long, display "..." at the end */
+    text-overflow: ellipsis;
+}
+
+.status {
+    margin: 0 16px;
+}
+
+.delete-cred-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
 }
 
 .checkbox-container {

@@ -174,6 +174,7 @@ class CredentialResponse(BaseModel):
     username: str
     status: str
     last_used_at: Optional[datetime] = None
+    is_global: bool = False
 
     class Config:
         from_attributes = True

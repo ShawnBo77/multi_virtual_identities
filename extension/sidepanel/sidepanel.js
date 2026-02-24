@@ -76,21 +76,33 @@ async function renderCredsView() {
         if (response && response.status === "success") {
             const creds = response.data;
             credList.innerHTML = "";
+
             if (creds.length === 0) {
                 credList.innerHTML =
                     '<div style="text-align:center; color:#888;">No accounts linked.</div>';
                 return;
             }
-            creds.forEach((cred) => {
-                const div = document.createElement("div");
-                div.className = "cred-item";
-                div.innerHTML = `
-                    <span>${cred.username} ${cred.is_global ? "🌐" : ""}</span>
-                    <span class="status-${cred.status.toLowerCase()}">${cred.status.toUpperCase()}</span>
-                    <button class="delete-cred-btn" data-username="${cred.username}" title="Unlink this account">✖</button>
-                `;
-                credList.appendChild(div);
-            });
+            const globalCreds = creds.filter((c) => c.is_global);
+            const localCreds = creds.filter((c) => !c.is_global);
+
+            const renderList = (accounts, title) => {
+                if (accounts.length > 0) {
+                    credList.innerHTML += `<div class="cred-section-header">${title}</div>`;
+                    accounts.forEach((cred) => {
+                        const div = document.createElement("div");
+                        div.className = "cred-item";
+                        div.innerHTML = `
+                            <span class="cred-username">${cred.username}</span>
+                            <span class="status status-${cred.status.toLowerCase()}">${cred.status.toUpperCase()}</span>
+                            <button class="delete-cred-btn" data-username="${cred.username}" title="Unlink this account">✖</button>
+                        `;
+                        credList.appendChild(div);
+                    });
+                }
+            };
+
+            renderList(globalCreds, "Global Accounts 🌐");
+            renderList(localCreds, "Local Accounts");
         } else {
             credList.innerHTML = `<li>Error: ${response.message || "Could not load accounts."}</li>`;
         }
