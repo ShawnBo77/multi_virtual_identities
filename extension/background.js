@@ -363,6 +363,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
 
+    if (request.action === "updateCredentialSettings") {
+        fetch(
+            `${API_BASE_URL}/instagram/credentials/${request.username}/settings`,
+            {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Client-ID": CLIENT_ID,
+                },
+                body: JSON.stringify({
+                    fetch_feed: request.payload.fetch_feed,
+                }),
+            },
+        )
+            .then((res) => res.json())
+            .then((data) => sendResponse({ status: "success", data }))
+            .catch((err) =>
+                sendResponse({ status: "error", message: err.message }),
+            );
+        return true;
+    }
+
     if (request.action === "deleteCredential") {
         if (!CLIENT_ID) {
             sendResponse({ status: "error", message: "Client ID not found." });

@@ -12,7 +12,7 @@ class Client(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     followings = relationship("Following", back_populates="client", cascade="all, delete-orphan")
-    instagram_accounts = relationship(
-        "InstagramCredential", secondary="client_instagram_credentials", back_populates="owners"
+    instagram_credential_links = relationship(
+        "ClientInstagramCredential", back_populates="client", cascade="all, delete-orphan"
     )
     instagram_saved_posts = relationship("InstagramSavedPost", back_populates="client", cascade="all, delete-orphan")

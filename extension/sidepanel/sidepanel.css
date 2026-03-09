@@ -116,83 +116,148 @@ h1 {
 }
 
 .cred-section-header {
-    font-weight: bold;
-    color: #555;
-    background-color: #f7f7f7;
-    padding: 6px 12px;
+    background-color: #f8f9fa;
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #495057;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-top: 1px solid #e9ecef;
+    border-bottom: 1px solid #e9ecef;
     margin-top: 10px;
-    border-top: 1px solid #ddd;
-    border-bottom: 1px solid #ddd;
 }
 
-.cred-section-header:first-child {
-    margin-top: 0;
-}
-
+/* Row Alignment */
 .cred-item {
     display: flex;
     align-items: center;
-    padding: 8px 12px;
-    border-bottom: 1px solid #eee;
-}
-
-.cred-username {
-    /* Allow this element to grow and take up all available space */
-    flex-grow: 1;
-    /* Prevent the username from wrapping to a new line */
+    padding: 10px 12px;
+    border-bottom: 1px solid #f1f3f5;
+    background-color: #fff;
     white-space: nowrap;
-    /* Hide any part of the username that overflows its container */
+}
+
+/* Column 1: Username */
+.cred-username {
+    flex: 0 0 100px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #212529;
     overflow: hidden;
-    /* If the username is too long, display "..." at the end */
     text-overflow: ellipsis;
+    margin-right: 10px;
 }
 
-.status {
-    margin: 0 16px;
+/* Column 2: Status Badge */
+.status-badge {
+    flex: 0 0 75px;
+    font-size: 10px;
+    padding: 3px 0;
+    border-radius: 4px;
+    text-align: center;
+    font-weight: 700;
 }
 
-.delete-cred-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 16px;
-}
-
-.checkbox-container {
-    display: flex;
-    align-items: center;
-    margin-top: 8px;
-    font-size: 12px;
-    color: #555;
-}
-
-.checkbox-container input {
-    margin-right: 6px;
+/* Status Colors */
+.status-pending {
+    background-color: #fff4e6;
+    color: #d9480f;
 }
 
 .status-success {
-    color: green;
+    background-color: #ebfbee;
+    color: #2b8a3e;
 }
 
-.status-login_failed,
+.status-failed,
 .status-locked {
-    color: red;
+    background-color: #fff5f5;
+    color: #c92a2a;
 }
 
-.status-pending,
 .status-challenge {
-    color: orange;
+    background-color: #f3f0ff;
+    color: #5f3dc4;
 }
 
+/* Column 3: Actions Group */
+.cred-actions {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding-left: 15px;
+}
+
+.toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.toggle-label {
+    font-size: 11px;
+    color: #868e96;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 32px;
+    height: 18px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #dee2e6;
+    transition: .3s;
+    border-radius: 34px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    transition: .3s;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+input:checked+.slider {
+    /* Blue when active */
+    background-color: #339af0;
+}
+
+input:checked+.slider:before {
+    transform: translateX(14px);
+}
+
+/* Delete Button - Now Red */
 .delete-cred-btn {
+    margin-left: auto;
     background: none;
     border: none;
-    color: #ed4956;
+    color: #ff4d4d;
     cursor: pointer;
+    font-size: 16px;
+    padding: 4px;
     font-weight: bold;
-    font-size: 14px;
-    padding: 0 5px;
-    margin-left: 10px;
+    transition: opacity 0.2s;
 }
 
 .delete-cred-btn:hover {

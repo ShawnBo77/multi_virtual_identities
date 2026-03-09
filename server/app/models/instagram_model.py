@@ -14,7 +14,6 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from ..database import Base
-from sqlalchemy import Table
 
 
 class InstagramUser(Base):
@@ -110,13 +109,15 @@ class CredentialStatus(str, enum.Enum):
     LOCKED = "locked"  # Account banned or locked
 
 
-client_instagram_credentials = Table(
-    "client_instagram_credentials",
-    Base.metadata,
-    Column("client_id", Integer, ForeignKey("clients.id"), primary_key=True),
-    Column("credential_id", Integer, ForeignKey("instagram_credentials.id"), primary_key=True),
-    Column("created_at", DateTime, default=datetime.utcnow),
-)
+class ClientInstagramCredential(Base):
+    __tablename__ = "client_instagram_credentials"
+
+    client_id = Column(Integer, ForeignKey("clients.id"), primary_key=True)
+    credential_id = Column(Integer, ForeignKey("instagram_credentials.id"), primary_key=True)
+    fetch_feed = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    client = relationship("Client", back_populates="instagram_credential_links")
+    credential = relationship("InstagramCredential", back_populates="client_links")
 
 
 class InstagramCredential(Base):
@@ -131,7 +132,7 @@ class InstagramCredential(Base):
     status = Column(SAEnum(CredentialStatus), default=CredentialStatus.PENDING, nullable=False)
     last_used_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    owners = relationship("Client", secondary=client_instagram_credentials, back_populates="instagram_accounts")
+    client_links = relationship("ClientInstagramCredential", back_populates="credential", cascade="all, delete-orphan")
 
 
 class InstagramScrapeLog(Base):
@@ -144,3 +145,16 @@ class InstagramScrapeLog(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     target_user = relationship("InstagramUser", back_populates="scrape_logs")
     credential = relationship("InstagramCredential")
+
+
+class InstagramHomeFeed(Base):
+    __tablename__ = "instagram_home_feeds"
+
+    id = Column(Integer, primary_key=True, index=True)
+    credential_id = Column(Integer, ForeignKey("instagram_credentials.id"), nullable=False, index=True)
+    post_id = Column(Integer, ForeignKey("instagram_posts.id"), nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    credential = relationship("InstagramCredential")
+    post = relationship("InstagramPost")
+
+    __table_args__ = (UniqueConstraint("credential_id", "post_id", name="_cred_post_home_feed_uc"),)

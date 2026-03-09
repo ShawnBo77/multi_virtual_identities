@@ -151,7 +151,12 @@ def register_credential(
 ):
     try:
         return instagram_service.register_credential_for_client(
-            db, client_id=client_id, username=payload.username, password=payload.password, is_global=payload.is_global
+            db,
+            client_id=client_id,
+            username=payload.username,
+            password=payload.password,
+            is_global=payload.is_global,
+            fetch_feed=payload.fetch_feed,
         )
     except HTTPException as http_ex:
         raise http_ex
@@ -185,3 +190,26 @@ def unlink_credential(username: str, client_id: int = Header(..., alias="Client-
         raise HTTPException(status_code=404, detail="Link between client and credential not found.")
 
     return
+
+
+@router.patch("/credentials/{username}/settings", summary="Update Client Settings for a Credential")
+def update_credential_settings(
+    username: str,
+    payload: instagram_schema.CredentialSettingsUpdate,
+    client_id: int = Header(..., alias="Client-ID"),
+    db: Session = Depends(get_db),
+):
+    """
+    Updates client-specific settings (like fetch_feed) for a linked Instagram account.
+    """
+    if username == "undefined":
+        raise HTTPException(status_code=400, detail="Invalid username provided: 'undefined'")
+
+    success = instagram_service.update_cred_link_settings(
+        db, client_id=client_id, username=username, fetch_feed=payload.fetch_feed
+    )
+
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Credential settings for '{username}' not found for this client.")
+
+    return {"status": "success", "message": f"Settings for {username} updated."}

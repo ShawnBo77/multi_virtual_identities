@@ -112,6 +112,7 @@ def get_post_by_code_with_client(db: Session, code: str, client_id: int):
     post.is_saved = is_saved
     return post
 
+
 def get_posts_by_user_pk(
     db: Session, user_pk: str, skip: int = 0, limit: int = 10
 ) -> List[instagram_model.InstagramPost]:
@@ -426,7 +427,7 @@ def upsert_instagram_credential(
 
 
 def register_credential_for_client(
-    db: Session, client_id: int, username: str, password: str, is_global: bool = False
+    db: Session, client_id: int, username: str, password: str, is_global: bool = False, fetch_feed: bool = False
 ) -> instagram_model.InstagramCredential:
     client = db.query(client_model.Client).filter(client_model.Client.id == client_id).first()
     if not client:
@@ -435,11 +436,21 @@ def register_credential_for_client(
     # Upsert Credential
     cred = upsert_instagram_credential(db, username, password, is_global)
 
-    # Create Association
-    if cred not in client.instagram_accounts:
-        client.instagram_accounts.append(cred)
-        print(f"    - [DB] Linked credential '{username}' to Client ID {client_id}.")
+    # Association Process
+    link = (
+        db.query(instagram_model.ClientInstagramCredential)
+        .filter_by(client_id=client_id, credential_id=cred.id)
+        .first()
+    )
+
+    if not link:
+        new_link = instagram_model.ClientInstagramCredential(
+            client_id=client_id, credential_id=cred.id, fetch_feed=fetch_feed
+        )
+        db.add(new_link)
+        print(f"    - [DB] Linked credential '{username}' to Client ID {client_id} (Fetch Feed: {fetch_feed}).")
     else:
+        link.fetch_feed = fetch_feed
         print(f"    - [DB] Credential '{username}' is already linked to Client ID {client_id}.")
 
     db.commit()
@@ -453,24 +464,30 @@ def unlink_credential_from_client(db: Session, client_id: int, username: str) ->
     Unlinks a credential from a client.
     If the credential has no other owners after unlinking, it is deleted from the database.
     """
-    # Find the client and the credential
-    client = db.query(client_model.Client).filter(client_model.Client.id == client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
-
+    # Find the credential
     cred = db.query(instagram_model.InstagramCredential).filter_by(username=username).first()
     if not cred:
+        # If credential doesn't exist, consider it already unlinked
         return True
 
-    # Check if the link exists and remove it
-    if cred in client.instagram_accounts:
-        client.instagram_accounts.remove(cred)
+    link = (
+        db.query(instagram_model.ClientInstagramCredential)
+        .filter_by(client_id=client_id, credential_id=cred.id)
+        .first()
+    )
+
+    # If the link exists, delete it
+    if link:
+        db.delete(link)
         db.commit()
         print(f"    - [DB] Unlinked '{username}' from Client ID {client_id}.")
 
-        # Check for orphans and clean up
-        db.refresh(cred)
-        if len(cred.owners) == 0:
+        # Orphan Check
+        remaining_links_count = (
+            db.query(instagram_model.ClientInstagramCredential).filter_by(credential_id=cred.id).count()
+        )
+
+        if remaining_links_count == 0:
             print(f"    - [DB] Credential '{username}' is now an orphan. Deleting record.")
             db.delete(cred)
             db.commit()
@@ -478,6 +495,34 @@ def unlink_credential_from_client(db: Session, client_id: int, username: str) ->
         return True
 
     return True
+
+
+def update_cred_link_settings(db: Session, client_id: int, username: str, fetch_feed: bool) -> bool:
+    """
+    Updates the 'fetch_feed' preference for a specific client-credential pair.
+    """
+    # Find the credential by username
+    cred = get_credential_by_username(db, username)
+    if not cred:
+        print(f"  - [DB] Update settings failed: Credential '{username}' not found.")
+        return False
+
+    # Find the association record for this client
+    link = (
+        db.query(instagram_model.ClientInstagramCredential)
+        .filter_by(client_id=client_id, credential_id=cred.id)
+        .first()
+    )
+
+    if link:
+        # Update the preference
+        link.fetch_feed = fetch_feed
+        db.commit()
+        print(f"  - [DB] Client {client_id} updated @{username} fetch_feed to: {fetch_feed}")
+        return True
+
+    print(f"  - [DB] No link found between Client {client_id} and Credential {username}.")
+    return False
 
 
 def update_credential_session(db: Session, cred_id: int, session_data: dict):
@@ -559,9 +604,21 @@ def get_credentials_by_client(db: Session, client_id: int) -> List[instagram_mod
     """
     Retrieves all Instagram credentials linked to a specific client.
     """
-    client = db.query(client_model.Client).filter(client_model.Client.id == client_id).first()
+    links = db.query(instagram_model.ClientInstagramCredential).filter_by(client_id=client_id).all()
 
-    if not client:
-        return []
+    results = []
+    for link in links:
+        cred = link.credential
 
-    return client.instagram_accounts
+        results.append(
+            {
+                "id": cred.id,
+                "username": cred.username,
+                "status": cred.status,
+                "is_global": cred.is_global,
+                "last_used_at": cred.last_used_at,
+                "fetch_feed": link.fetch_feed,
+            }
+        )
+
+    return results

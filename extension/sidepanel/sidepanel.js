@@ -92,9 +92,24 @@ async function renderCredsView() {
                         const div = document.createElement("div");
                         div.className = "cred-item";
                         div.innerHTML = `
-                            <span class="cred-username">${cred.username}</span>
-                            <span class="status status-${cred.status.toLowerCase()}">${cred.status.toUpperCase()}</span>
-                            <button class="delete-cred-btn" data-username="${cred.username}" title="Unlink this account">✖</button>
+                            <span class="cred-username" title="${cred.username}">${cred.username}</span>
+                            
+                            <span class="status-badge status-${cred.status.toLowerCase()}">
+                                ${cred.status.toUpperCase()}
+                            </span>
+
+                            <div class="cred-actions">
+                                <div class="toggle-container">
+                                    <span class="toggle-label">Sync Feed</span>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" class="fetch-feed-toggle" 
+                                            data-username="${cred.username}" 
+                                            ${cred.fetch_feed ? "checked" : ""}>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <button class="delete-cred-btn" data-username="${cred.username}">✖</button>
+                            </div>
                         `;
                         credList.appendChild(div);
                     });
@@ -193,6 +208,7 @@ addCredForm.addEventListener("submit", async (e) => {
     const username = document.getElementById("cred-username").value.trim();
     const password = document.getElementById("cred-password").value.trim();
     const isGlobal = document.getElementById("cred-is-global").checked;
+    const fetchFeed = document.getElementById("cred-fetch-feed").checked;
     const btn = addCredForm.querySelector("button");
 
     if (!username || !password) return;
@@ -202,7 +218,12 @@ addCredForm.addEventListener("submit", async (e) => {
 
     const response = await chrome.runtime.sendMessage({
         action: "addCredential",
-        payload: { username, password, is_global: isGlobal },
+        payload: {
+            username,
+            password,
+            is_global: isGlobal,
+            fetch_feed: fetchFeed,
+        },
     });
 
     if (response.status === "success") {
@@ -210,6 +231,7 @@ addCredForm.addEventListener("submit", async (e) => {
         document.getElementById("cred-username").value = "";
         document.getElementById("cred-password").value = "";
         document.getElementById("cred-is-global").checked = false;
+        document.getElementById("cred-fetch-feed").checked = false;
         renderCredsView(); // Re-render this section
     } else {
         alert(`Failed: ${response.message || "Unknown error"}`);
@@ -217,6 +239,24 @@ addCredForm.addEventListener("submit", async (e) => {
 
     btn.disabled = false;
     btn.textContent = "Save Account";
+});
+
+credList.addEventListener("change", async (e) => {
+    if (e.target.classList.contains("fetch-feed-toggle")) {
+        const username = e.target.dataset.username;
+        const isEnabled = e.target.checked;
+
+        const response = await chrome.runtime.sendMessage({
+            action: "updateCredentialSettings",
+            username: username,
+            payload: { fetch_feed: isEnabled },
+        });
+
+        if (response.status !== "success") {
+            alert("Failed to update: " + response.message);
+            e.target.checked = !isEnabled;
+        }
+    }
 });
 
 credList.addEventListener("click", async (e) => {

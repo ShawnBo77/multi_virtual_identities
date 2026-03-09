@@ -39,7 +39,7 @@ app.mount("/media", StaticFiles(directory=STATIC_FILES_DIR), name="media")
 
 print(f"--- Serving media files from: {STATIC_FILES_DIR} ---")
 
-origins = ["https://www.instagram.com"]
+origins = ["*"]
 
 # CORS Middleware
 app.add_middleware(
