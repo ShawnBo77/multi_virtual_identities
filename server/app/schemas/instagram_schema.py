@@ -166,7 +166,7 @@ class InstagramSavedPostResponse(BaseModel):
 class CredentialCreate(BaseModel):
     username: str
     password: str
-    is_global: bool = False
+    is_shared: bool = False
     fetch_feed: bool = False
 
 
@@ -175,7 +175,7 @@ class CredentialResponse(BaseModel):
     username: str
     status: str
     last_used_at: Optional[datetime] = None
-    is_global: bool = False
+    is_shared: bool = False
     fetch_feed: bool = False
 
     class Config:

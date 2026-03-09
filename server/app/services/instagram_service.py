@@ -378,7 +378,7 @@ def get_random_available_credential(db: Session) -> Optional[instagram_model.Ins
     return (
         db.query(instagram_model.InstagramCredential)
         .filter(instagram_model.InstagramCredential.status == instagram_model.CredentialStatus.SUCCESS)
-        .filter(instagram_model.InstagramCredential.is_global.is_(True))
+        .filter(instagram_model.InstagramCredential.is_shared.is_(True))
         .order_by(func.random())
         .first()
     )
@@ -396,7 +396,7 @@ def get_credential_by_id(db: Session, cred_id: int) -> Optional[instagram_model.
 
 
 def upsert_instagram_credential(
-    db: Session, username: str, password: str, is_global: bool = False
+    db: Session, username: str, password: str, is_shared: bool = False
 ) -> instagram_model.InstagramCredential:
     """
     Creates a new credential record or updates an existing one.
@@ -408,7 +408,7 @@ def upsert_instagram_credential(
         # Update existing credential
         cred.password = password
         cred.status = instagram_model.CredentialStatus.PENDING
-        cred.is_global = is_global
+        cred.is_shared = is_shared
         print(f"    - [DB] Updated password for {username}.")
     else:
         # Create new credential
@@ -417,7 +417,7 @@ def upsert_instagram_credential(
             password=password,
             user_agent=None,
             status=instagram_model.CredentialStatus.PENDING,
-            is_global=is_global,
+            is_shared=is_shared,
         )
         db.add(cred)
         print(f"    - [DB] Created new credential record for {username}.")
@@ -427,14 +427,14 @@ def upsert_instagram_credential(
 
 
 def register_credential_for_client(
-    db: Session, client_id: int, username: str, password: str, is_global: bool = False, fetch_feed: bool = False
+    db: Session, client_id: int, username: str, password: str, is_shared: bool = False, fetch_feed: bool = False
 ) -> instagram_model.InstagramCredential:
     client = db.query(client_model.Client).filter(client_model.Client.id == client_id).first()
     if not client:
         raise HTTPException(status_code=404, detail=f"Client with ID {client_id} not found")
 
     # Upsert Credential
-    cred = upsert_instagram_credential(db, username, password, is_global)
+    cred = upsert_instagram_credential(db, username, password, is_shared)
 
     # Association Process
     link = (
@@ -615,7 +615,7 @@ def get_credentials_by_client(db: Session, client_id: int) -> List[instagram_mod
                 "id": cred.id,
                 "username": cred.username,
                 "status": cred.status,
-                "is_global": cred.is_global,
+                "is_shared": cred.is_shared,
                 "last_used_at": cred.last_used_at,
                 "fetch_feed": link.fetch_feed,
             }

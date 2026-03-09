@@ -116,16 +116,41 @@ h1 {
 }
 
 .cred-section-header {
+    display: flex;
+    align-items: center;
     background-color: #f8f9fa;
-    padding: 8px 12px;
+    padding: 6px 12px;
+    margin-top: 15px;
+    border-top: 1px solid #dee2e6;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.header-icon {
+    font-size: 15px;
+    margin-right: 8px;
+    display: inline-flex;
+    align-items: center;
+}
+
+.header-icon svg {
+    width: 15px;
+    height: 15px;
+}
+
+.header-text {
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 800;
     color: #495057;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border-top: 1px solid #e9ecef;
-    border-bottom: 1px solid #e9ecef;
-    margin-top: 10px;
+}
+
+.icon-shared svg {
+    color: #00d2ff;
+    filter: drop-shadow(0 0 2px rgba(0, 210, 255, 0.4));
+}
+
+.icon-private svg {
+    color: #51cf66;
 }
 
 /* Row Alignment */

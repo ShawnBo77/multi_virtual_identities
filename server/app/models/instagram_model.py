@@ -128,7 +128,7 @@ class InstagramCredential(Base):
     password = Column(String, nullable=True)
     cookies = Column(JSON, nullable=True)  # Store Selenium cookies as JSON
     user_agent = Column(String, nullable=True)
-    is_global = Column(Boolean, default=False)
+    is_shared = Column(Boolean, default=False)
     status = Column(SAEnum(CredentialStatus), default=CredentialStatus.PENDING, nullable=False)
     last_used_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)

@@ -82,12 +82,23 @@ async function renderCredsView() {
                     '<div style="text-align:center; color:#888;">No accounts linked.</div>';
                 return;
             }
-            const globalCreds = creds.filter((c) => c.is_global);
-            const localCreds = creds.filter((c) => !c.is_global);
+            const sharedCreds = creds.filter((c) => c.is_shared);
+            const privateCreds = creds.filter((c) => !c.is_shared);
 
-            const renderList = (accounts, title) => {
+            const SVG_ICONS = {
+                shared: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>`,
+                private: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`,
+            };
+
+            const renderList = (accounts, title, iconKey, iconClass) => {
                 if (accounts.length > 0) {
-                    credList.innerHTML += `<div class="cred-section-header">${title}</div>`;
+                    credList.innerHTML += `
+                        <div class="cred-section-header">
+                            <span class="header-icon ${iconClass}">${SVG_ICONS[iconKey]}</span>
+                            <span class="header-text">${title}</span>
+                        </div>
+                    `;
+
                     accounts.forEach((cred) => {
                         const div = document.createElement("div");
                         div.className = "cred-item";
@@ -116,8 +127,13 @@ async function renderCredsView() {
                 }
             };
 
-            renderList(globalCreds, "Global Accounts 🌐");
-            renderList(localCreds, "Local Accounts");
+            renderList(sharedCreds, "Shared Accounts", "shared", "icon-shared");
+            renderList(
+                privateCreds,
+                "Private Accounts",
+                "private",
+                "icon-private",
+            );
         } else {
             credList.innerHTML = `<li>Error: ${response.message || "Could not load accounts."}</li>`;
         }
@@ -207,7 +223,7 @@ addCredForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const username = document.getElementById("cred-username").value.trim();
     const password = document.getElementById("cred-password").value.trim();
-    const isGlobal = document.getElementById("cred-is-global").checked;
+    const isShared = document.getElementById("cred-is-shared").checked;
     const fetchFeed = document.getElementById("cred-fetch-feed").checked;
     const btn = addCredForm.querySelector("button");
 
@@ -221,7 +237,7 @@ addCredForm.addEventListener("submit", async (e) => {
         payload: {
             username,
             password,
-            is_global: isGlobal,
+            is_shared: isShared,
             fetch_feed: fetchFeed,
         },
     });
@@ -230,7 +246,7 @@ addCredForm.addEventListener("submit", async (e) => {
         alert("Account saved!");
         document.getElementById("cred-username").value = "";
         document.getElementById("cred-password").value = "";
-        document.getElementById("cred-is-global").checked = false;
+        document.getElementById("cred-is-shared").checked = false;
         document.getElementById("cred-fetch-feed").checked = false;
         renderCredsView(); // Re-render this section
     } else {

@@ -18,12 +18,12 @@ if SERVER_ROOT not in sys.path:
     sys.path.append(SERVER_ROOT)
 
 
-def import_credentials(as_global: bool, link_to_client_id: int = None):
+def import_credentials(as_shared: bool, link_to_client_id: int = None):
     """
     Imports credential JSON files into the database.
 
     Args:
-        as_global (bool): If True, sets 'is_global' flag on all imported credentials.
+        as_shared (bool): If True, sets 'is_shared' flag on all imported credentials.
         link_to_client_id (int, optional): If provided, links all imported credentials
                                            to this client ID.
     """
@@ -89,7 +89,7 @@ def import_credentials(as_global: bool, link_to_client_id: int = None):
                     # Since we are importing a valid cookie, mark it as SUCCESS
                     existing_cred.status = instagram_model.CredentialStatus.SUCCESS
                     existing_cred.last_used_at = datetime.utcnow()
-                    existing_cred.is_global = as_global  # Update global status
+                    existing_cred.is_shared = as_shared  # Update shared status
 
                     print(f"  - [Updated] {username}")
                     updated_count += 1
@@ -101,7 +101,7 @@ def import_credentials(as_global: bool, link_to_client_id: int = None):
                         cookies=cookies,
                         user_agent=user_agent,
                         status=instagram_model.CredentialStatus.SUCCESS,  # Assume valid since file exists
-                        is_global=as_global,
+                        is_shared=as_shared,
                         last_used_at=datetime.utcnow(),
                     )
                     db.add(new_cred)
@@ -137,9 +137,9 @@ if __name__ == "__main__":
     # Setup command-line argument parsing
     parser = argparse.ArgumentParser(description="Import Instagram credential JSON files to the database.")
     parser.add_argument(
-        "--global", dest="as_global", action="store_true", help="Set all imported credentials as global accounts."
+        "--shared", dest="as_shared", action="store_true", help="Set all imported credentials as shared accounts."
     )
     parser.add_argument("--client-id", type=int, help="Link all imported credentials to a specific client ID.")
     args = parser.parse_args()
 
-    import_credentials(as_global=args.as_global, link_to_client_id=args.client_id)
+    import_credentials(as_shared=args.as_shared, link_to_client_id=args.client_id)
