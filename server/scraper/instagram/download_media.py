@@ -7,6 +7,7 @@ import time
 import random
 import mimetypes
 from typing import List, Dict
+from json_utils import extract_media_payload
 
 # --- Global Path Settings ---
 SERVER_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
@@ -141,7 +142,8 @@ def download_profile_picture(target_user_pk: str, posts_json_dir: str, source_js
         with open(json_filepath, "r", encoding="utf-8") as f:
             post_data = json.load(f)
 
-        hd_pic_url = post_data.get("user", {}).get("hd_profile_pic_url_info", {}).get("url") or post_data.get(
+        media_payload = extract_media_payload(post_data)
+        hd_pic_url = media_payload.get("user", {}).get("hd_profile_pic_url_info", {}).get("url") or media_payload.get(
             "user", {}
         ).get("profile_pic_url")
 
@@ -163,7 +165,7 @@ def process_single_post(target_user_pk: str, post_pk: str) -> bool:
     """
     Processes and downloads media for a single post.
     """
-    print(f"--- Processing post: {post_pk} ---")
+    print(f"--- Downloading post: {post_pk} ---")
 
     json_filepath = os.path.join(DATA_FOLDER_PATH, target_user_pk, "posts", f"{post_pk}.json")
     if not os.path.exists(json_filepath):
@@ -180,14 +182,14 @@ def process_single_post(target_user_pk: str, post_pk: str) -> bool:
         print(f"  - Error: Could not read or parse JSON file for post {post_pk}: {e}")
         return False
 
-    media_to_download = get_media_urls_from_post(post_data)
+    media_payload = extract_media_payload(post_data)
+    media_to_download = get_media_urls_from_post(media_payload)
 
     if not media_to_download:
         print("  - No downloadable media found for this post.")
         return False
 
-    media_output_dir_base = os.path.join(MEDIA_FOLDER_PATH, target_user_pk)
-    post_media_dir = os.path.join(media_output_dir_base, post_pk)
+    post_media_dir = os.path.join(MEDIA_FOLDER_PATH, target_user_pk, post_pk)
     os.makedirs(post_media_dir, exist_ok=True)
     # print(f"  - Media will be saved to: {post_media_dir}")
 
@@ -244,7 +246,7 @@ def download_specific_posts_for_user(target_user_pk: str, post_pks: List[str]):
 
         any_download_occurred = process_single_post(target_user_pk, post_pk)
 
-    print("\n--- Specific post download tasks are complete. ---")
+    print("--- Specific post download tasks are complete. ---")
 
 
 def download_media_for_user(target_user_pk: str):
@@ -283,6 +285,44 @@ def download_media_for_user(target_user_pk: str):
     print("\n--- All media download tasks are complete. ---")
 
 
+def download_all_media():
+    """
+    Scans the data directory and processes all user folders except for 'logs'.
+    This is useful for bulk media synchronization.
+    """
+    if not os.path.exists(DATA_FOLDER_PATH):
+        print(f"  - [Error] Data folder not found at: {DATA_FOLDER_PATH}")
+        return
+
+    all_entries = os.listdir(DATA_FOLDER_PATH)
+
+    user_pks = [
+        entry for entry in all_entries if os.path.isdir(os.path.join(DATA_FOLDER_PATH, entry)) and entry != "logs"
+    ]
+
+    if not user_pks:
+        print("  - [Info] No user data folders found to process.")
+        return
+
+    print(f"\n{'=' * 50}")
+    print(f"--- Found {len(user_pks)} users to process for media download ---")
+    print(f"{'=' * 50}\n")
+
+    for i, pk in enumerate(user_pks):
+        print(f"\n[{i + 1}/{len(user_pks)}] Processing User ID: {pk}")
+        try:
+            download_media_for_user(pk)
+            delay = random.uniform(1, 5)
+            print(f"\n--- Delaying for {delay:.2f}s before next user... ---")
+            time.sleep(delay)
+        except Exception as e:
+            print(f"  - [Batch Error] Failed to process user {pk}: {e}")
+
+    print(f"\n{'=' * 50}")
+    print("--- Download process completed. ---")
+    print(f"{'=' * 50}")
+
+
 def main():
     """
     Main function to handle command-line argument parsing and dispatching.
@@ -290,19 +330,32 @@ def main():
     parser = argparse.ArgumentParser(
         description="Download media and profile picture from saved Instagram JSON files. Can download all media for a user or specific posts."
     )
-    parser.add_argument("target_user_pk", type=str, help="Target User PK (ID) - must match the folder name in data/")
+    parser.add_argument(
+        "target_user_pk", type=str, nargs="?", help="Target User PK (ID) - must match the folder name in data/"
+    )
     parser.add_argument(
         "-p",
         "--posts",
         nargs="+",
         help="One or more post PKs (IDs) to download specifically. If not provided, all posts will be processed.",
     )
+    parser.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        help="Scan the data folder and download media for all users (excludes 'logs').",
+    )
     args = parser.parse_args()
 
-    if args.posts:
+    if args.all:
+        download_all_media()
+    elif args.target_user_pk and args.posts:
         download_specific_posts_for_user(args.target_user_pk, args.posts)
-    else:
+    elif args.target_user_pk:
         download_media_for_user(args.target_user_pk)
+    else:
+        parser.print_help()
+        print("\n[Error] Please provide a User PK or use the --all flag.")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 from sqlalchemy import and_, exists
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from ..models import client_model, instagram_model, follow_model
 from ..schemas import instagram_schema
 from sqlalchemy.sql.expression import func
@@ -198,7 +198,7 @@ def update_user_scrape_time(db: Session, pk: str):
     """
     user_to_update = get_user_by_pk(db, pk=pk)
     if user_to_update:
-        user_to_update.last_scraped_at = datetime.now(datetime.UTC)
+        user_to_update.last_scraped_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(user_to_update)
         print(f"  - Updated last_scraped_at for user {pk}.")
@@ -541,7 +541,7 @@ def update_credential_session(db: Session, cred_id: int, session_data: dict):
     if user_agent:
         cred.user_agent = user_agent
     cred.status = instagram_model.CredentialStatus.SUCCESS
-    cred.last_used_at = datetime.now(datetime.UTC)
+    cred.last_used_at = datetime.now(timezone.utc)
     db.commit()
     print(f"    - [DB] Updated for credential ID: {cred_id} ({cred.username})")
     return True
@@ -558,7 +558,7 @@ def update_credential_status(db: Session, cred_id: int, status: instagram_model.
 
 def create_scrape_log(db: Session, target_user_id: int, credential_id: int, status: instagram_model.ScrapeStatus):
     new_log = instagram_model.InstagramScrapeLog(
-        target_user_id=target_user_id, credential_id=credential_id, status=status, created_at=datetime.now(datetime.UTC)
+        target_user_id=target_user_id, credential_id=credential_id, status=status, created_at=datetime.now(timezone.utc)
     )
     db.add(new_log)
     db.commit()
@@ -622,3 +622,25 @@ def get_credentials_by_client(db: Session, client_id: int) -> List[instagram_mod
         )
 
     return results
+
+
+def link_post_to_home_feed(db: Session, credential_id: int, post_id: int):
+    """
+    Records the relationship between a credential and a post found in its home feed.
+    """
+    try:
+        # Check if the association already exists
+        exists = (
+            db.query(instagram_model.InstagramHomeFeed).filter_by(credential_id=credential_id, post_id=post_id).first()
+        )
+
+        if not exists:
+            # Create a new link
+            new_entry = instagram_model.InstagramHomeFeed(credential_id=credential_id, post_id=post_id)
+            db.add(new_entry)
+            db.commit()
+            # print(f"  - [DB] Linked post {post_id} to credential {credential_id}")
+
+    except Exception as e:
+        db.rollback()
+        print(f"  - [DB Error] Failed to record feed appearance: {e}")

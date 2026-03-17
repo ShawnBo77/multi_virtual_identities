@@ -2,8 +2,10 @@ import os
 import json
 import sys
 import argparse
+import csv
 from sqlalchemy.orm import Session
 from typing import List, Dict, Optional
+from datetime import datetime
 
 # --- Setup paths and imports ---
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
@@ -11,10 +13,13 @@ from app.database import SessionLocal, engine
 from app.services import instagram_service
 from app.models import instagram_model, client_model, follow_model
 
+from json_utils import extract_media_payload
+
 # --- Path Configuration ---
 SERVER_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 DATA_FOLDER_PATH = os.path.join(SERVER_ROOT, "data", "instagram")
 MEDIA_FOLDER_PATH = os.path.join(SERVER_ROOT, "media", "instagram")
+LOG_FILE_PATH = os.path.join(DATA_FOLDER_PATH, "logs", "home_feed_discovery.csv")
 
 
 def initialize_database():
@@ -125,6 +130,46 @@ def find_local_media_for_post(user_pk: str, post_data: Dict) -> List[Dict]:
     return db_ready_media_list
 
 
+def reconstruct_home_feed_from_log(db: Session):
+    """
+    Reconstructs the relationship between Credentials and Posts using the discovery log CSV.
+    """
+    if not os.path.exists(LOG_FILE_PATH):
+        print(f"\n--- [Skip] Discovery log not found at {LOG_FILE_PATH} ---")
+        return
+
+    with open(LOG_FILE_PATH, mode="r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+
+        for row in reader:
+            try:
+                username = row["credential_username"]
+                post_pk = row["post_pk"]
+
+                # Find Credential
+                cred = (
+                    db.query(instagram_model.InstagramCredential)
+                    .filter((instagram_model.InstagramCredential.username == username))
+                    .first()
+                )
+                if not cred:
+                    print(f"Cred {row['credential_username']} not found!")
+
+                # Find Post
+                post = db.query(instagram_model.InstagramPost).filter_by(pk=post_pk).first()
+                if not post:
+                    print(f"Post {row['post_pk']} not found!")
+
+                instagram_service.link_post_to_home_feed(db, cred.id, post.id)
+
+            except Exception as e:
+                print(f"  - ✗ Error reconstructing relationship for post {post_pk}: {e}")
+                db.rollback()
+
+    db.commit()
+    print(f"--- Successfully restored the Home Feed relationships. ---")
+
+
 def import_data_for_specific_user(db_session: Session, user_pk: str):
     """
     Imports data for a single specific user PK.
@@ -136,7 +181,7 @@ def import_data_for_specific_user(db_session: Session, user_pk: str):
         print(f"  - ✗ Warning: Data directory not found for user PK {user_pk} at {posts_json_dir}")
         return
 
-    print(f"--- Processing user: {user_pk} ---")
+    print(f"--- Importing data for user: {user_pk} ---")
 
     post_files = [f for f in os.listdir(posts_json_dir) if f.endswith(".json")]
     if not post_files:
@@ -144,26 +189,6 @@ def import_data_for_specific_user(db_session: Session, user_pk: str):
         return
 
     is_first_post_for_user = True
-
-    # Extract Username from the first available JSON
-    extracted_username = None
-    try:
-        first_json_path = os.path.join(posts_json_dir, post_files[0])
-        with open(first_json_path, "r", encoding="utf-8") as f:
-            first_data = json.load(f)
-            if "user" in first_data:
-                extracted_username = first_data["user"].get("username")
-            elif "owner" in first_data:
-                extracted_username = first_data["owner"].get("username")
-    except Exception as e:
-        print(f"  - Error reading metadata for username extraction: {e}")
-        return
-
-    if not extracted_username:
-        print(f"  - Warning: Could not extract username from JSON in {user_pk}. Skipping.")
-        return
-
-    # print(f"  - Identified Username: @{extracted_username} (PK: {user_pk})")
 
     # Iterate through post files
     for filename in post_files:
@@ -179,11 +204,12 @@ def import_data_for_specific_user(db_session: Session, user_pk: str):
             json_filepath = os.path.join(posts_json_dir, filename)
             with open(json_filepath, "r", encoding="utf-8") as f:
                 post_data = json.load(f)
+                post_data = extract_media_payload(post_data)
 
             # Create User in DB if not exists
             if is_first_post_for_user and not instagram_service.get_user_by_pk(db_session, user_pk):
                 try:
-                    user_info = post_data.get("user") or post_data.get("owner")
+                    user_info = post_data.get("user")
                     user_info["profile_pic_local_path"] = find_local_profile_pic(user_pk)
                     user = instagram_service.get_user_by_username(db_session, user_info.get("username"))
                     if user:
@@ -228,7 +254,10 @@ def import_all_data_to_database():
 
         print(f"\nScanning for users in '{DATA_FOLDER_PATH}'...")
         for user_pk in os.listdir(DATA_FOLDER_PATH):
+            if user_pk == "logs" or not os.path.isdir(os.path.join(DATA_FOLDER_PATH, user_pk)):
+                continue
             import_data_for_specific_user(db_session, user_pk)
+
     finally:
         db_session.close()
 
@@ -238,11 +267,18 @@ def import_all_data_to_database():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Import scraped JSON data and downloaded media into the database.")
     parser.add_argument("-u", "--user_pk", type=str, help="Specific User PK to import (Optional).")
+    parser.add_argument("-rc", "--reconstruct", action="store_true", help="Only reconstruct Home Feed links from CSV.")
     args = parser.parse_args()
 
     initialize_database()
 
-    if args.user_pk:
+    if args.reconstruct:
+        db = SessionLocal()
+        try:
+            reconstruct_home_feed_from_log(db)
+        finally:
+            db.close()
+    elif args.user_pk:
         # Import single user
         db = SessionLocal()
         try:

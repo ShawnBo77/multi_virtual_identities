@@ -13,20 +13,10 @@ from selenium.webdriver.firefox.service import Service as FirefoxService
 from selenium.webdriver.common.by import By
 from webdriver_manager.firefox import GeckoDriverManager
 
+from scraper.instagram.browser_utils import verify_login_status
 from scraper.instagram.scrape_metadata import scrape_single_user, inject_cookies
 from scraper.instagram.download_media import download_media_for_user
 from scraper.instagram.import_data_to_db import import_data_for_specific_user
-
-FAIL_KEYWORDS = ["login", "challenge", "two_factor", "checkpoint", "suspend", "consent", "contact", "reset"]
-
-USERNAME_LOCATORS = [
-    (By.NAME, "username"),
-    (By.NAME, "email"),
-    (By.NAME, "phoneNumber"),
-    (By.CSS_SELECTOR, "input[autocomplete='username webauthn']"),
-    (By.XPATH, "//input[@type='text' and @name='email']"),
-    (By.XPATH, "//label[contains(., 'username') or contains(., 'email')]/preceding-sibling::input"),
-]
 
 
 class InstagramPostScraper:
@@ -43,68 +33,23 @@ class InstagramPostScraper:
         self.USER_COOLDOWN_HOURS = 24  # Cooldown before re-scraping a user
 
     def start(self):
-        """Starts the background scraping thread."""
+        """Starts the background post scraper scraping thread."""
         if self._thread and self._thread.is_alive():
             return
 
-        print("[Background] Starting auto-scraper service...")
+        print("[PostScraper] Starting auto-scraper service...")
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
 
     def stop(self):
         """Signals the thread to stop and waits for it to finish."""
-        print("[Background] Stopping auto-scraper service...")
+        print("[PostScraper] Stopping auto-scraper service...")
         self._stop_event.set()
         if self._thread:
             self._thread.join(timeout=10)
         self._close_browser()
-        print("[Background] Auto-scraper stopped.")
-
-    def _is_login_input_present(self) -> bool:
-        """
-        Checks if any login input fields are visible on the page.
-        Iterates through multiple locators to ensure robustness against UI changes.
-        """
-        for by_method, pattern in USERNAME_LOCATORS:
-            try:
-                elements = self.driver.find_elements(by_method, pattern)
-                for element in elements:
-                    if element.is_displayed():
-                        # print(f"[Background] Debug: Login input found via {pattern}")
-                        return True
-            except Exception:
-                continue
-        return False
-
-    def _verify_login_status(self) -> bool:
-        """
-        Checks URL keywords, presence of login inputs, and navigation elements.
-        """
-        try:
-            time.sleep(random.uniform(3, 5))
-            self.driver.get("https://www.instagram.com/")
-
-            # Wait for redirects
-            time.sleep(random.uniform(5, 10))
-
-            # Check URL for failure keywords
-            current_url = self.driver.current_url.lower()
-            for keyword in FAIL_KEYWORDS:
-                if keyword in current_url:
-                    print(f"[Background] ✗ Login failed: URL contains '{keyword}'")
-                    return False
-
-            # Check if login form exists
-            if self._is_login_input_present():
-                print("[Background] ✗ Login failed: Login input fields are visible.")
-                return False
-
-            return True
-
-        except Exception as e:
-            print(f"[Background] Error during login verification: {e}")
-            return False
+        print("[PostScraper] Auto-scraper stopped.")
 
     def _ensure_browser_for_credential(self, cred_id: Optional[int] = None):
         """
@@ -117,9 +62,9 @@ class InstagramPostScraper:
 
         # Browser exists and matches requirement
         if self.driver is not None:
-            if cred_id is None and self._verify_login_status():
+            if cred_id is None and verify_login_status(self.driver):
                 return True
-            if self.current_cred_id == cred_id and self._verify_login_status():
+            if self.current_cred_id == cred_id and verify_login_status(self.driver):
                 return True
 
         # Need to switch or start fresh
@@ -132,7 +77,7 @@ class InstagramPostScraper:
                 # Try to get the specific sticky credential
                 cred_obj = instagram_service.get_credential_by_id(db, cred_id)
                 if not cred_obj:
-                    print(f"[Background] ⚠ Sticky credential ID {cred_id} not found/inactive.")
+                    print(f"[PostScraper] ⚠ Sticky credential ID {cred_id} not found/inactive.")
 
             # Fallback or Random request
             if not cred_obj:
@@ -142,7 +87,7 @@ class InstagramPostScraper:
             db.close()
 
         if not cred_obj:
-            print("[Background] ✗ No active credentials available!")
+            print("[PostScraper] ✗ No active credentials available!")
             return False
 
         # Start Selenium
@@ -150,7 +95,7 @@ class InstagramPostScraper:
         self.current_cred_username = cred_obj.username
         user_agent = cred_obj.user_agent
 
-        print(f"[Background] Initializing Browser with account: {self.current_cred_username}")
+        print(f"[PostScraper] Initializing Browser with account: {self.current_cred_username}")
         try:
             service = FirefoxService(GeckoDriverManager().install())
             options = webdriver.FirefoxOptions()
@@ -163,11 +108,10 @@ class InstagramPostScraper:
             self.driver = webdriver.Firefox(service=service, options=options)
 
             cookies = cred_obj.cookies if cred_obj.cookies else []
-            if (
-                not inject_cookies(self.driver, "https://www.instagram.com/", cookies)
-                or not self._verify_login_status()
+            if not inject_cookies(self.driver, "https://www.instagram.com/", cookies) or not verify_login_status(
+                self.driver
             ):
-                print(f"[Background] Login failed for {self.current_cred_username}.")
+                print(f"[PostScraper] Login failed for {self.current_cred_username}.")
                 with SessionLocal() as db:
                     instagram_service.update_credential_status(
                         db, self.current_cred_id, status=instagram_model.CredentialStatus.PENDING
@@ -186,7 +130,7 @@ class InstagramPostScraper:
             return True
 
         except Exception as e:
-            print(f"[Background] Browser launch failed: {e}")
+            print(f"[PostScraper] Browser launch failed: {e}")
             self._close_browser()
             return False
 
@@ -199,7 +143,7 @@ class InstagramPostScraper:
             instagram_service.update_credential_session(db, self.current_cred_id, current_cookies)
             db.close()
         except Exception as e:
-            print(f"[Background] Failed to update cookies in DB: {e}")
+            print(f"[PostScraper] Failed to update cookies in DB: {e}")
 
     def _close_browser(self):
         """Safely closes the browser instance."""
@@ -208,9 +152,10 @@ class InstagramPostScraper:
                 self.driver.quit()
             except Exception:
                 pass
-            self.driver = None
-            self.current_cred_id = None
-            self.current_cred_username = None
+            finally:
+                self.driver = None
+                self.current_cred_id = None
+                self.current_cred_username = None
 
     def _get_next_user_to_scrape(self, db: Session) -> Optional[instagram_model.InstagramUser]:
         """
@@ -240,8 +185,8 @@ class InstagramPostScraper:
         return user
 
     def _run_loop(self):
-        """The main execution loop for the background service."""
-        print("[Background] Loop started.")
+        """The execution loop for the background post scraper service."""
+        print("[PostScraper] Post scraper service started.")
 
         while not self._stop_event.is_set():
             db = SessionLocal()
@@ -249,7 +194,7 @@ class InstagramPostScraper:
                 target_user = self._get_next_user_to_scrape(db)
 
                 if not target_user:
-                    print("[Background] No users need to scrape. Sleep 1 min.")
+                    print("[PostScraper] No users need to scrape. Sleep 1 min.")
                     self._wait(60)
                     continue
 
@@ -257,13 +202,13 @@ class InstagramPostScraper:
                 sticky_cred_id = instagram_service.get_last_successful_credential_id(db, target_user.id)
 
                 if sticky_cred_id:
-                    print(f"\n[Background] >>> Processing Task: {username} (Credential ID: {sticky_cred_id}) <<<")
+                    print(f"\n[PostScraper] >>> Processing Task: {username} (Credential ID: {sticky_cred_id}) <<<")
                 else:
-                    print(f"\n[Background] >>> Processing Task: {username} (Any Credential) <<<")
+                    print(f"\n[PostScraper] >>> Processing Task: {username} (Any Credential) <<<")
 
                 # Prepare Browser (Switches only if necessary)
                 if not self._ensure_browser_for_credential(sticky_cred_id):
-                    print("[Background] Could not initialize browser. Sleeping 5 mins.")
+                    print("[PostScraper] Could not initialize browser. Sleeping 5 mins.")
                     self._wait(300)
                     continue
 
@@ -273,7 +218,7 @@ class InstagramPostScraper:
                     scraped_user_info = scrape_single_user(self.driver, username, num_posts_to_fetch=5)
                     self._update_cookies_in_db()
                 except Exception as e:
-                    print(f"[Background] Error scraping {username}: {e}")
+                    print(f"[PostScraper] Error scraping {username}: {e}")
                     # Log failure
                     if target_user.id:
                         instagram_service.create_scrape_log(
@@ -287,11 +232,11 @@ class InstagramPostScraper:
 
                 # Sync user
                 if scraped_user_info and scraped_user_info.get("pk"):
-                    print(f"[Background] Syncing user data for @{scraped_user_info.get('username')}...")
+                    print(f"[PostScraper] Syncing user data for @{scraped_user_info.get('username')}...")
                     target_user = instagram_service.update_user_from_data(db, scraped_user_info)
                 else:
                     print(
-                        f"[Background] ⚠ Scrape did not return user info for {username}. Might be a private/empty account. Skipping download."
+                        f"[PostScraper] ⚠ Scrape did not return user info for {username}. Might be a private/empty account. Skipping download."
                     )
                     if target_user.id:
                         instagram_service.create_scrape_log(
@@ -301,10 +246,10 @@ class InstagramPostScraper:
 
                 # Download and Import Media (Using PK)
                 if target_user and target_user.pk:
-                    print(f"[Background] Downloading media for {target_user.username} (PK: {target_user.pk})...")
+                    print(f"[PostScraper] Downloading media for {target_user.username} (PK: {target_user.pk})...")
                     download_media_for_user(target_user.pk)
 
-                    print("[Background] Import posts and media paths...")
+                    print("[PostScraper] Import posts and media paths...")
                     import_data_for_specific_user(db, target_user.pk)
 
                     # Update timestamp
@@ -313,9 +258,9 @@ class InstagramPostScraper:
                         db, target_user.id, self.current_cred_id, status=instagram_model.ScrapeStatus.SUCCESS
                     )
                     db.commit()
-                    print(f"[Background] ✓ Task complete for {target_user.username}.")
+                    print(f"[PostScraper] ✓ Task complete for {target_user.username}.")
                 else:
-                    print(f"[Background] ⚠ Could not determine PK for {username}. Updating timestamp to skip.")
+                    print(f"[PostScraper] ⚠ Could not determine PK for {username}. Updating timestamp to skip.")
                     target_user.last_scraped_at = datetime.utcnow()
 
                     if target_user.id:
@@ -328,16 +273,16 @@ class InstagramPostScraper:
                 # Cleanup and Sleep
                 self.scrape_counter += 1
                 if self.scrape_counter >= self.RESTART_BROWSER_EVERY:
-                    print("[Background] Restarting browser to free resources...")
+                    print("[PostScraper] Restarting browser to free resources...")
                     self._close_browser()
                     self.scrape_counter = 0
 
                 sleep_time = random.uniform(45, 90)
-                print(f"[Background] Sleeping for {sleep_time:.1f}s...")
+                print(f"[PostScraper] Sleeping for {sleep_time:.1f}s...")
                 self._wait(sleep_time)
 
             except Exception as e:
-                print(f"[Background] Unexpected error in loop: {e}")
+                print(f"[PostScraper] Unexpected error in loop: {e}")
                 traceback.print_exc()
                 self._wait(60)
             finally:

@@ -8,6 +8,7 @@ from .models import client_model, follow_model, instagram_model
 from .routers import client_router, follow_router, instagram_router
 from .services.instagram_credential_scraper import instagram_credential_scraper
 from .services.instagram_post_scraper import instagram_post_scraper
+from .services.instagram_home_feed_scraper import instagram_home_feed_scraper
 
 # Create all tables
 client_model.Base.metadata.create_all(bind=engine)
@@ -19,12 +20,14 @@ instagram_model.Base.metadata.create_all(bind=engine)
 #     print("--- Server Starting: Launching Background Scraper ---")
 #     instagram_credential_scraper.start()
 #     instagram_post_scraper.start()
+#     instagram_home_feed_scraper.start()
 
 #     yield
 
 #     print("--- Server Stopping: Shutting down Scraper ---")
 #     instagram_credential_scraper.stop()
 #     instagram_post_scraper.stop()
+#     instagram_home_feed_scraper.stop()
 
 # app = FastAPI(lifespan=lifespan)
 app = FastAPI()
