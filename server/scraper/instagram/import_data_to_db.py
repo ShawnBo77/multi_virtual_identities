@@ -194,12 +194,6 @@ def import_data_for_specific_user(db_session: Session, user_pk: str):
     for filename in post_files:
         post_pk = os.path.splitext(filename)[0]
 
-        if instagram_service.get_post_by_pk(db_session, post_pk):
-            # Already imported
-            continue
-
-        print(f"  - Preparing to import post: {post_pk}")
-
         try:
             json_filepath = os.path.join(posts_json_dir, filename)
             with open(json_filepath, "r", encoding="utf-8") as f:
@@ -207,7 +201,7 @@ def import_data_for_specific_user(db_session: Session, user_pk: str):
                 post_data = extract_media_payload(post_data)
 
             # Create User in DB if not exists
-            if is_first_post_for_user and not instagram_service.get_user_by_pk(db_session, user_pk):
+            if is_first_post_for_user:
                 try:
                     user_info = post_data.get("user")
                     user_info["profile_pic_local_path"] = find_local_profile_pic(user_pk)
@@ -216,9 +210,16 @@ def import_data_for_specific_user(db_session: Session, user_pk: str):
                         instagram_service.update_user_from_data(db_session, user_info)
                     elif user_info:
                         instagram_service.create_user_by_data(db_session, user_info)
+                    db_session.commit()
                 except Exception as e:
                     print(f"  - ✗ ERROR reading first post JSON for user creation: {e}")
                 is_first_post_for_user = False
+
+            if instagram_service.get_post_by_pk(db_session, post_pk):
+                # Already imported
+                continue
+
+            print(f"  - Preparing to import post: {post_pk}")
 
             # Process Media and Create Post
             media_items_in_json = post_data.get("carousel_media") or [post_data]
