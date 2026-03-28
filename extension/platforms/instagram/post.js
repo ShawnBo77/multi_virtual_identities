@@ -16,6 +16,33 @@ async function fetchFeed(limit = 2) {
     }
 }
 
+async function fetchHomeFeed(limit = 2) {
+    if (!CLIENT_ID) return [];
+
+    const url = `${API_BASE_URL}/instagram/home-feed?limit=${limit}`;
+    try {
+        const response = await fetch(url, {
+            headers: {
+                "Client-ID": CLIENT_ID,
+                "Content-Type": "application/json",
+            },
+        });
+
+        if (!response.ok) {
+            console.warn(
+                "[IG Injector] Home feed response not OK:",
+                response.status,
+            );
+            return [];
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error("[IG Injector] Error fetching home feed:", error);
+        return [];
+    }
+}
+
 async function handleSaveClick(event) {
     const saveButton = event.currentTarget;
     const postId = saveButton.dataset.postId;
@@ -301,6 +328,7 @@ function createCustomPostElement(data) {
 async function injectPost() {
     // Set the number of new posts to fetch in one batch
     const FEED_LIMIT = 2;
+    const HOME_FEED_LIMIT = 2;
 
     // Only inject on the Instagram home page ('/')
     if (window.location.pathname !== "/") {
@@ -322,34 +350,50 @@ async function injectPost() {
 
     // Stop interval processing
     clearInterval(injectionInterval);
-    console.log(
-        `[IG Injector] Checking for new feed posts (Limit: ${FEED_LIMIT})...`,
-    );
+    console.log(`[IG Injector] Checking for new feed posts ...`);
 
-    const allPosts = await fetchFeed(FEED_LIMIT);
+    try {
+        // Fetch both feeds concurrently for better performance
+        const [targetFeed, homeFeed] = await Promise.all([
+            fetchFeed(FEED_LIMIT),
+            fetchHomeFeed(HOME_FEED_LIMIT),
+        ]);
 
-    if (allPosts.length === 0) {
-        console.log("[IG Injector] No new unsent posts found.");
-        return;
-    }
+        // Combine both results into one array
+        const allPosts = [...targetFeed, ...homeFeed];
 
-    // Reverse the array so that the newest post is appearing at the top
-    const postsToInject = [...allPosts].reverse();
-
-    postsToInject.forEach((postData) => {
-        if (!postData || !postData.code) return;
-
-        // Double check duplicate injection by ID
-        if (!document.getElementById(`custom-post-${postData.code}`)) {
-            const customPost = createCustomPostElement(postData);
-            feedContainer.insertBefore(customPost, feedContainer.firstChild);
+        if (allPosts.length === 0) {
+            console.log(
+                "[IG Injector] No new unsent posts found in either feed.",
+            );
+            return;
         }
-    });
 
-    console.log(
-        `%c[IG Injector] Successfully injected ${allPosts.length} posts!`,
-        "color: green; font-weight: bold;",
-    );
+        // Sort combined posts by 'taken_at' to keep the timeline consistent
+        const postsToInject = allPosts.sort(
+            (a, b) => new Date(a.taken_at) - new Date(b.taken_at),
+        );
+
+        postsToInject.forEach((postData) => {
+            if (!postData || !postData.code) return;
+
+            // Double check duplicate injection by ID
+            if (!document.getElementById(`custom-post-${postData.code}`)) {
+                const customPost = createCustomPostElement(postData);
+                feedContainer.insertBefore(
+                    customPost,
+                    feedContainer.firstChild,
+                );
+            }
+        });
+
+        console.log(
+            `%c[IG Injector] Injected ${allPosts.length} posts (${targetFeed.length} Target, ${homeFeed.length} Home)!`,
+            "color: green; font-weight: bold;",
+        );
+    } catch (error) {
+        console.error("[IG Injector] Error during injection:", error);
+    }
 }
 
 // ==========================================

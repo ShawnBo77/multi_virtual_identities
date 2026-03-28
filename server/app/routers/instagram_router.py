@@ -91,6 +91,18 @@ def get_instagram_feed(
 
 
 @router.get(
+    "/home-feed", response_model=List[instagram_schema.InstagramPostBrief], summary="Get Unseen Home Feed Posts"
+)
+def get_home_feed(
+    limit: int = Query(10, ge=1, le=50), client_id: int = Header(..., alias="Client-ID"), db: Session = Depends(get_db)
+):
+    """
+    Retrieve home feed posts for the client, filtered by history to avoid duplicates.
+    """
+    return instagram_service.get_home_feed_posts(db, client_id=client_id, limit=limit)
+
+
+@router.get(
     "/saved-posts",
     response_model=List[instagram_schema.InstagramSavedPostResponse],
     response_model_exclude={"__all__": {"thumbnail_local_path"}},

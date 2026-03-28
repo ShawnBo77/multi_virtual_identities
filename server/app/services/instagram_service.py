@@ -319,6 +319,59 @@ def get_unsent_posts(
     return posts
 
 
+def get_home_feed_posts(db: Session, client_id: int, limit: int = 10) -> List[instagram_model.InstagramPost]:
+    """
+    Fetch posts from the Home Feed of credentials linked to a specific client,
+    excluding posts that the client has already seen (recorded in history).
+    """
+    # Get all credential IDs linked to this client that have fetch_feed enabled
+    active_credentials = (
+        db.query(instagram_model.ClientInstagramCredential.credential_id)
+        .filter(
+            instagram_model.ClientInstagramCredential.client_id == client_id,
+            instagram_model.ClientInstagramCredential.fetch_feed == True,
+        )
+        .all()
+    )
+
+    cred_ids = [c[0] for c in active_credentials]
+    if not cred_ids:
+        return []
+
+    # Build the query joining InstagramPost with the HomeFeed association table
+    query = (
+        db.query(instagram_model.InstagramPost)
+        .join(
+            instagram_model.InstagramHomeFeed,
+            instagram_model.InstagramPost.id == instagram_model.InstagramHomeFeed.post_id,
+        )
+        .filter(instagram_model.InstagramHomeFeed.credential_id.in_(cred_ids))
+    )
+
+    # Exclude posts already recorded in the client's feed history
+    query = query.outerjoin(
+        instagram_model.InstagramFeedHistory,
+        and_(
+            instagram_model.InstagramFeedHistory.post_id == instagram_model.InstagramPost.id,
+            instagram_model.InstagramFeedHistory.client_id == client_id,
+        ),
+    )
+    query = query.filter(instagram_model.InstagramFeedHistory.id.is_(None))
+
+    # Order by newest first and apply limit
+    posts = query.order_by(instagram_model.InstagramPost.taken_at.desc()).limit(limit).all()
+
+    # Mark these posts as sent in the history table
+    if posts:
+        new_history_records = [
+            instagram_model.InstagramFeedHistory(client_id=client_id, post_id=post.id) for post in posts
+        ]
+        db.add_all(new_history_records)
+        db.commit()
+
+    return posts
+
+
 def save_post(db: Session, client_id: int, post_id: int):
     # Check if the saved record already exists
     existing_save = db.query(instagram_model.InstagramSavedPost).filter_by(client_id=client_id, post_id=post_id).first()
