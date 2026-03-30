@@ -6,7 +6,43 @@
     <link rel="stylesheet" href="sidepanel.css">
 </head>
 <body>
-    <div class="container">
+    <div id="auth-section" class="container">
+        <h2 style="text-align: center;">Social Shield</h2>
+        <div class="tabs">
+            <button class="auth-tab-btn active" data-target="login-form">Login</button>
+            <button class="auth-tab-btn" data-target="register-form">Register</button>
+        </div>
+
+        <div id="login-form" class="auth-view active">
+            <input type="text" id="login-username" placeholder="Username" required>
+            <div class="password-wrapper">
+                <input type="password" id="login-password" placeholder="Password" required>
+                <span class="toggle-password" data-target="login-password">👁️</span>
+            </div>
+            <button id="login-submit-btn" class="primary-btn">Login</button>
+        </div>
+
+        <div id="register-form" class="auth-view">
+            <input type="text" id="reg-username" placeholder="Choose Username" required>
+            <div class="password-wrapper">
+                <input type="password" id="reg-password" placeholder="Choose Password" required>
+                <span class="toggle-password" data-target="reg-password">👁️</span>
+            </div>
+            <div class="password-wrapper">
+                <input type="password" id="reg-confirm-password" placeholder="Confirm Password" required>
+                <span class="toggle-password" data-target="reg-confirm-password">👁️</span>
+            </div>
+            <button id="reg-submit-btn" class="primary-btn">Create Account</button>
+        </div>
+        <p id="auth-error" style="color: #ff4d4d; font-size: 12px; margin-top: 10px; display: none;"></p>
+    </div>
+
+    <div id="main-content" class="container" style="display: none;">
+        <div class="user-header">
+            <span id="display-username"></span>
+            <button id="logout-btn">Logout</button>
+        </div>
+
         <div class="tabs">
             <button class="tab-btn active" data-target="view-follow">Follows</button>
             <button class="tab-btn" data-target="view-settings">Accounts</button>
@@ -24,8 +60,13 @@
         <div id="view-settings" class="view-section">
             <h3>Instagram Accounts</h3>
             <form id="add-cred-form">
-                <input type="text" id="cred-username" placeholder="Username" required>
-                <input type="password" id="cred-password" placeholder="Password" required>
+                <div class="input-wrapper">
+                    <input type="text" id="cred-username" placeholder="Username" required>
+                </div>
+                <div class="password-wrapper">
+                    <input type="password" id="cred-password" placeholder="Password" required>
+                    <span class="toggle-password" data-target="cred-password">👁️</span>
+                </div>
                 <div class="checkbox-container">
                     <input type="checkbox" id="cred-is-shared">
                     <label for="cred-is-shared">Make this a shared account</label>

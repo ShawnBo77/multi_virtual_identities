@@ -9,6 +9,100 @@ body {
     padding: 10px 15px;
 }
 
+/* Auth view visibility logic */
+.auth-view {
+    display: none;
+    /* Hide forms by default */
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.auth-view.active {
+    display: flex;
+    /* Show only the active form */
+}
+
+/* Input fields */
+input[type="text"],
+input[type="password"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #dbdbdb;
+    border-radius: 4px;
+    background: #fafafa;
+    box-sizing: border-box;
+}
+
+/* Wrapper to contain the input and the eye icon */
+.password-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+/* Make sure the input leaves space for the icon */
+.password-wrapper input {
+    padding-right: 40px !important;
+}
+
+/* Eye icon styling */
+.toggle-password {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    user-select: none;
+    font-size: 16px;
+    color: #8e8e8e;
+}
+
+.toggle-password:hover {
+    color: #262626;
+}
+
+/* Buttons */
+.primary-btn,
+#login-submit-btn,
+#reg-submit-btn {
+    background-color: #0095f6;
+    color: white;
+    border: none;
+    padding: 10px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.primary-btn:hover {
+    background-color: #1877f2;
+}
+
+/* User Header after login */
+.user-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid #eee;
+}
+
+#display-username {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+#logout-btn {
+    background: #efefef;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
 h1 {
     font-size: 16px;
     margin: 0 0 10px;
@@ -37,14 +131,6 @@ h1 {
     padding: 6px 10px;
     cursor: pointer;
     margin-top: 5px;
-}
-
-#username-input {
-    flex-grow: 1;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    padding: 6px;
-    font-size: 14px;
 }
 
 #add-follow-form button:hover {
@@ -93,6 +179,7 @@ h1 {
     margin-bottom: 10px;
 }
 
+.auth-tab-btn,
 .tab-btn {
     flex: 1;
     padding: 8px;
@@ -102,6 +189,7 @@ h1 {
     font-weight: bold;
 }
 
+.auth-tab-btn.active,
 .tab-btn.active {
     border-bottom: 2px solid #0095f6;
     color: #0095f6;
@@ -151,6 +239,28 @@ h1 {
 
 .icon-private svg {
     color: #51cf66;
+}
+
+#add-cred-form .input-wrapper,
+#add-cred-form .password-wrapper {
+    width: 100%;
+    margin-bottom: 12px;
+    position: relative;
+    display: block;
+}
+
+#add-cred-form input[type="text"],
+#add-cred-form input[type="password"] {
+    width: 100%;
+    margin: 0;
+}
+
+.checkbox-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #444;
 }
 
 /* Row Alignment */

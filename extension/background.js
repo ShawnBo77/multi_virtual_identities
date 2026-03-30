@@ -10,43 +10,41 @@ let isSyncing = false;
 // Client ID Management (NEW & CENTRALIZED)
 // ==========================================
 
-async function registerClient() {
+/**
+ * Handle login or registration requests from the sidepanel
+ * @param {string} mode - "login" or "register"
+ * @param {object} payload - {username, password}
+ */
+async function handleUserAuth(mode, payload) {
+    const endpoint = mode === "login" ? "/login" : "/register";
     try {
-        const response = await fetch(`${API_BASE_URL}/clients`, {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
             method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
         });
-        if (response.ok) {
-            const newClient = await response.json();
-            return newClient.id;
-        }
-        return null;
-    } catch (error) {
-        console.error("[Background] Failed to register client:", error);
-        return null;
-    }
-}
 
-async function getClientID() {
-    const data = await chrome.storage.local.get("clientID");
-    if (data.clientID) {
-        CLIENT_ID = data.clientID;
-        console.log(`[Background] Client ID loaded from storage: ${CLIENT_ID}`);
-    } else {
-        console.log(
-            "[Background] Client ID not found. Registering new client...",
-        );
-        const newId = await registerClient();
-        if (newId) {
-            CLIENT_ID = newId;
-            await chrome.storage.local.set({ clientID: newId });
-            console.log(
-                `[Background] New Client ID registered and saved: ${CLIENT_ID}`,
-            );
+        const data = await response.json();
+        if (response.ok) {
+            // Save clientID and username to storage
+            CLIENT_ID = data.id;
+            await chrome.storage.local.set({
+                clientID: data.id,
+                username: data.username,
+            });
+
+            // Re-initialize alarms after successful login
+            initializeAlarms();
+            return { status: "success", data: data };
         } else {
-            console.error(
-                "[Background] CRITICAL: Failed to get a Client ID. Core functions will be disabled.",
-            );
+            return {
+                status: "error",
+                message: data.detail || "Authentication failed",
+            };
         }
+    } catch (error) {
+        console.error(`[Background] Auth error (${mode}):`, error);
+        return { status: "error", message: "Server connection failed" };
     }
 }
 
@@ -251,6 +249,23 @@ async function fetchFollowingsFromServer() {
 // ==========================================
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "login" || request.action === "register") {
+        handleUserAuth(request.action, request.payload).then(sendResponse);
+        return true; // Keep channel open for async fetch
+    }
+
+    if (request.action === "logout") {
+        chrome.storage.local.remove(
+            ["clientID", "username", "serverCache", "pendingChanges"],
+            () => {
+                CLIENT_ID = null;
+                chrome.alarms.clearAll();
+                sendResponse({ status: "success" });
+            },
+        );
+        return true;
+    }
+
     if (request.action === "recordAction") {
         recordAction(request.type, request.username);
         sendResponse({ status: "ok" });
@@ -263,153 +278,184 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
 
-    // Forwarding message from sidepanel to content script
-    if (request.action === "showSavedPosts") {
-        chrome.tabs.query(
-            { active: true, currentWindow: true, url: "*://*.instagram.com/*" },
-            (tabs) => {
-                if (tabs.length > 0) {
-                    chrome.tabs.sendMessage(
-                        tabs[0].id,
-                        { action: "renderSavedPosts" },
-                        (response) => {
-                            if (chrome.runtime.lastError) {
-                                sendResponse({
-                                    status: "error",
-                                    message: chrome.runtime.lastError.message,
-                                });
-                            } else {
-                                sendResponse(response);
-                            }
-                        },
-                    );
-                } else {
-                    sendResponse({
-                        status: "error",
-                        message: "No active Instagram tab found.",
-                    });
-                }
-            },
-        );
-        return true;
-    }
-
-    // When the content script initializes, it might need the client ID
-    if (request.action === "getClientID") {
-        sendResponse({ clientID: CLIENT_ID });
-        return true;
-    }
-
-    if (request.action === "getState") {
-        const effectiveList = getEffectiveFollowList();
-        sendResponse({
-            status: "success",
-            data: {
-                serverCache: serverCache,
-                pendingChanges: pendingChanges,
-                effectiveFollowList: effectiveList,
-                clientID: CLIENT_ID,
-            },
-        });
-        return true;
-    }
-
-    if (request.action === "getCredentials") {
+    // Use an async function inside the listener to wait for storage
+    (async () => {
+        // Recovery: Re-fetch ID from storage if it was lost in memory
         if (!CLIENT_ID) {
-            sendResponse({ status: "error", message: "Client ID not found." });
+            const data = await chrome.storage.local.get("clientID");
+            CLIENT_ID = data.clientID || null;
+        }
+
+        if (!CLIENT_ID) {
+            sendResponse({
+                status: "error",
+                message: "Client ID not found. Please login.",
+            });
+            return;
+        }
+
+        // Forwarding message from sidepanel to content script
+        if (request.action === "showSavedPosts") {
+            chrome.tabs.query(
+                {
+                    active: true,
+                    currentWindow: true,
+                    url: "*://*.instagram.com/*",
+                },
+                (tabs) => {
+                    if (tabs.length > 0) {
+                        chrome.tabs.sendMessage(
+                            tabs[0].id,
+                            { action: "renderSavedPosts" },
+                            (response) => {
+                                if (chrome.runtime.lastError) {
+                                    sendResponse({
+                                        status: "error",
+                                        message:
+                                            chrome.runtime.lastError.message,
+                                    });
+                                } else {
+                                    sendResponse(response);
+                                }
+                            },
+                        );
+                    } else {
+                        sendResponse({
+                            status: "error",
+                            message: "No active Instagram tab found.",
+                        });
+                    }
+                },
+            );
             return true;
         }
-        fetch(`${API_BASE_URL}/instagram/credentials`, {
-            headers: { "Client-ID": CLIENT_ID },
-        })
-            .then((res) => {
-                if (!res.ok) throw new Error(`Server error: ${res.status}`);
-                return res.json();
-            })
-            .then((data) => sendResponse({ status: "success", data: data }))
-            .catch((err) =>
-                sendResponse({ status: "error", message: err.message }),
-            );
-        return true; // Keep the message channel open for the async response
-    }
-
-    if (request.action === "addCredential") {
-        if (!CLIENT_ID) {
-            sendResponse({ status: "error", message: "Client ID not found." });
+        // When the content script initializes, it might need the client ID
+        else if (request.action === "getClientID") {
+            sendResponse({ clientID: CLIENT_ID });
             return true;
         }
-        fetch(`${API_BASE_URL}/instagram/credentials`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Client-ID": CLIENT_ID,
-            },
-            body: JSON.stringify(request.payload),
-        })
-            .then(async (res) => {
-                if (res.ok) {
-                    sendResponse({ status: "success" });
-                } else {
-                    const err = await res.json();
-                    sendResponse({
-                        status: "error",
-                        message: err.detail || "Unknown error",
-                    });
-                }
+        // getState
+        else if (request.action === "getState") {
+            const effectiveList = getEffectiveFollowList();
+            sendResponse({
+                status: "success",
+                data: {
+                    serverCache: serverCache,
+                    pendingChanges: pendingChanges,
+                    effectiveFollowList: effectiveList,
+                    clientID: CLIENT_ID,
+                },
+            });
+            return true;
+        }
+        // getCredentials
+        else if (request.action === "getCredentials") {
+            if (!CLIENT_ID) {
+                sendResponse({
+                    status: "error",
+                    message: "Client ID not found.",
+                });
+                return true;
+            }
+            fetch(`${API_BASE_URL}/instagram/credentials`, {
+                headers: { "Client-ID": CLIENT_ID },
             })
-            .catch((err) =>
-                sendResponse({ status: "error", message: err.message }),
-            );
-        return true;
-    }
-
-    if (request.action === "updateCredentialSettings") {
-        fetch(
-            `${API_BASE_URL}/instagram/credentials/${request.username}/settings`,
-            {
-                method: "PATCH",
+                .then((res) => {
+                    if (!res.ok) throw new Error(`Server error: ${res.status}`);
+                    return res.json();
+                })
+                .then((data) => sendResponse({ status: "success", data: data }))
+                .catch((err) =>
+                    sendResponse({ status: "error", message: err.message }),
+                );
+            return true; // Keep the message channel open for the async response
+        }
+        // addCredential
+        else if (request.action === "addCredential") {
+            if (!CLIENT_ID) {
+                sendResponse({
+                    status: "error",
+                    message: "Client ID not found.",
+                });
+                return true;
+            }
+            fetch(`${API_BASE_URL}/instagram/credentials`, {
+                method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     "Client-ID": CLIENT_ID,
                 },
-                body: JSON.stringify({
-                    fetch_feed: request.payload.fetch_feed,
-                }),
-            },
-        )
-            .then((res) => res.json())
-            .then((data) => sendResponse({ status: "success", data }))
-            .catch((err) =>
-                sendResponse({ status: "error", message: err.message }),
-            );
-        return true;
-    }
-
-    if (request.action === "deleteCredential") {
-        if (!CLIENT_ID) {
-            sendResponse({ status: "error", message: "Client ID not found." });
+                body: JSON.stringify(request.payload),
+            })
+                .then(async (res) => {
+                    if (res.ok) {
+                        sendResponse({ status: "success" });
+                    } else {
+                        const err = await res.json();
+                        sendResponse({
+                            status: "error",
+                            message: err.detail || "Unknown error",
+                        });
+                    }
+                })
+                .catch((err) =>
+                    sendResponse({ status: "error", message: err.message }),
+                );
             return true;
         }
-        fetch(`${API_BASE_URL}/instagram/credentials/${request.username}`, {
-            method: "DELETE",
-            headers: { "Client-ID": CLIENT_ID },
-        })
-            .then((res) => {
-                if (res.ok) {
-                    // Handles 204 No Content
-                    sendResponse({ status: "success" });
-                } else {
-                    sendResponse({
-                        status: "error",
-                        message: "Failed to delete on server.",
-                    });
-                }
+        // updateCredentialSettings
+        else if (request.action === "updateCredentialSettings") {
+            fetch(
+                `${API_BASE_URL}/instagram/credentials/${request.username}/settings`,
+                {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Client-ID": CLIENT_ID,
+                    },
+                    body: JSON.stringify({
+                        fetch_feed: request.payload.fetch_feed,
+                    }),
+                },
+            )
+                .then((res) => res.json())
+                .then((data) => sendResponse({ status: "success", data }))
+                .catch((err) =>
+                    sendResponse({ status: "error", message: err.message }),
+                );
+            return true;
+        }
+        // deleteCredential
+        else if (request.action === "deleteCredential") {
+            if (!CLIENT_ID) {
+                sendResponse({
+                    status: "error",
+                    message: "Client ID not found.",
+                });
+                return true;
+            }
+            fetch(`${API_BASE_URL}/instagram/credentials/${request.username}`, {
+                method: "DELETE",
+                headers: { "Client-ID": CLIENT_ID },
             })
-            .catch((err) =>
-                sendResponse({ status: "error", message: err.message }),
-            );
-        return true;
-    }
+                .then((res) => {
+                    if (res.ok) {
+                        // Handles 204 No Content
+                        sendResponse({ status: "success" });
+                    } else {
+                        sendResponse({
+                            status: "error",
+                            message: "Failed to delete on server.",
+                        });
+                    }
+                })
+                .catch((err) =>
+                    sendResponse({ status: "error", message: err.message }),
+                );
+            return true;
+        }
+    })();
+    return true;
 });
 
 // Open Side Panel on Action Click
@@ -427,20 +473,23 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     }
 });
 
+function initializeAlarms() {
+    if (!CLIENT_ID) return;
+    chrome.alarms.create("process-sync", {
+        delayInMinutes: 0.1,
+        periodInMinutes: 1,
+    });
+    chrome.alarms.create("fetch-server-list", {
+        delayInMinutes: 0.2,
+        periodInMinutes: 1,
+    });
+}
+
 async function initializeExtension() {
-    await getClientID();
     await loadState();
 
     if (CLIENT_ID) {
-        console.log("[Background] ClientID exists. Setting up alarms.");
-        chrome.alarms.create("process-sync", {
-            delayInMinutes: 0.1,
-            periodInMinutes: 1,
-        });
-        chrome.alarms.create("fetch-server-list", {
-            delayInMinutes: 0.2,
-            periodInMinutes: 1,
-        });
+        initializeAlarms();
     } else {
         console.warn("[Background] No ClientID, alarms will not be created.");
     }

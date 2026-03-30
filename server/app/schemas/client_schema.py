@@ -3,11 +3,6 @@ from typing import List
 from datetime import datetime
 
 
-class ClientCreateResponse(BaseModel):
-    id: int
-    created_at: datetime
-
-
 class Client(BaseModel):
     id: int
     created_at: datetime
@@ -16,6 +11,17 @@ class Client(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ClientCreateResponse(BaseModel):
+    id: int
+    username: str
+    created_at: datetime
+
+
+class ClientAuth(BaseModel):
+    username: str
+    password: str
 
 
 class Following(BaseModel):
