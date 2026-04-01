@@ -180,22 +180,22 @@ def register_credential(
 @router.get(
     "/credentials",
     response_model=List[instagram_schema.CredentialResponse],
-    summary="List accounts linked to this client",
+    summary="List identities linked to this client",
 )
 def get_credentials(client_id: int = Header(..., alias="Client-ID"), db: Session = Depends(get_db)):
     """
-    Returns a list of Instagram accounts specifically linked to the requesting Client-ID.
+    Returns a list of Instagram identities specifically linked to the requesting Client-ID.
     """
     creds = instagram_service.get_credentials_by_client(db, client_id)
 
     return creds
 
 
-@router.delete("/credentials/{username}", status_code=204, summary="Unlink an Instagram Account from a Client")
+@router.delete("/credentials/{username}", status_code=204, summary="Unlink an Instagram identity from a Client")
 def unlink_credential(username: str, client_id: int = Header(..., alias="Client-ID"), db: Session = Depends(get_db)):
     """
-    Removes the link between the requesting client and the specified Instagram account.
-    If the account becomes orphaned (no other clients are linked to it), it will be deleted.
+    Removes the link between the requesting client and the specified Instagram identity.
+    If the identity becomes orphaned (no other clients are linked to it), it will be deleted.
     """
     success = instagram_service.unlink_credential_from_client(db, client_id=client_id, username=username)
     if not success:
@@ -212,7 +212,7 @@ def update_credential_settings(
     db: Session = Depends(get_db),
 ):
     """
-    Updates client-specific settings (like fetch_feed) for a linked Instagram account.
+    Updates client-specific settings (like fetch_feed) for a linked Instagram identity.
     """
     if username == "undefined":
         raise HTTPException(status_code=400, detail="Invalid username provided: 'undefined'")

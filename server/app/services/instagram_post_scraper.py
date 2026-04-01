@@ -95,7 +95,7 @@ class InstagramPostScraper:
         self.current_cred_username = cred_obj.username
         user_agent = cred_obj.user_agent
 
-        print(f"[PostScraper] Initializing Browser with account: {self.current_cred_username}")
+        print(f"[PostScraper] Initializing Browser with identity: {self.current_cred_username}")
         try:
             service = FirefoxService(GeckoDriverManager().install())
             options = webdriver.FirefoxOptions()
@@ -236,7 +236,7 @@ class InstagramPostScraper:
                     target_user = instagram_service.update_user_from_data(db, scraped_user_info)
                 else:
                     print(
-                        f"[PostScraper] ⚠ Scrape did not return user info for {username}. Might be a private/empty account. Skipping download."
+                        f"[PostScraper] ⚠ Scrape did not return user info for {username}. Might be a private/empty identity. Skipping download."
                     )
                     if target_user.id:
                         instagram_service.create_scrape_log(

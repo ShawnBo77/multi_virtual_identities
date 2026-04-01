@@ -28,13 +28,13 @@ class InstagramCredentialScraper:
 
     def _run_loop(self):
         while not self._stop_event.is_set():
-            self._process_pending_accounts()
+            self._process_pending_identities()
             self._wait(self.CHECK_INTERVAL)
 
-    def _process_pending_accounts(self):
+    def _process_pending_identities(self):
         db = SessionLocal()
         try:
-            # Find all accounts with PENDING status
+            # Find all identities with PENDING status
             pending_creds = (
                 db.query(instagram_model.InstagramCredential)
                 .filter(instagram_model.InstagramCredential.status == instagram_model.CredentialStatus.PENDING)
@@ -44,7 +44,7 @@ class InstagramCredentialScraper:
             if not pending_creds:
                 return
 
-            print(f"[CredScraper] Found {len(pending_creds)} accounts needing login...")
+            print(f"[CredScraper] Found {len(pending_creds)} identities needing login...")
 
             for cred in pending_creds:
                 if self._stop_event.is_set():
@@ -68,7 +68,7 @@ class InstagramCredentialScraper:
                     if result_data:
                         # Update status to SUCCESS
                         instagram_service.update_credential_session(db, cred.id, result_data)
-                        print("  - ✓ Account restored.")
+                        print("  - ✓ Identity restored.")
                     else:
                         # Mark status as LOGIN_FAILED
                         print("  - ✗ Login failed.")

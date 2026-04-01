@@ -111,10 +111,23 @@ def import_credentials(as_shared: bool, link_to_client_id: int = None):
                     cred_to_link = new_cred
 
                 # Link to client if requested
-                if target_client and cred_to_link not in target_client.instagram_accounts:
-                    target_client.instagram_accounts.append(cred_to_link)
-                    print(f"    - [Linked] to Client ID {link_to_client_id}")
-                    linked_count += 1
+                if target_client:
+                    existing_link = (
+                        db.query(instagram_model.ClientInstagramCredential)
+                        .filter_by(client_id=target_client.id, credential_id=cred_to_link.id)
+                        .first()
+                    )
+
+                    if not existing_link:
+                        # Create a new link between client and credential
+                        new_link = instagram_model.ClientInstagramCredential(
+                            client_id=target_client.id, credential_id=cred_to_link.id, fetch_feed=False
+                        )
+                        db.add(new_link)
+                        print(f"    - [Linked] to Client ID {link_to_client_id}")
+                        linked_count += 1
+                    else:
+                        print(f"    - [Skip] Link already exists for Client ID {link_to_client_id}")
 
             except Exception as e:
                 print(f"  - [Error] Failed to process {filename}: {e}")
@@ -137,7 +150,7 @@ if __name__ == "__main__":
     # Setup command-line argument parsing
     parser = argparse.ArgumentParser(description="Import Instagram credential JSON files to the database.")
     parser.add_argument(
-        "--shared", dest="as_shared", action="store_true", help="Set all imported credentials as shared accounts."
+        "--shared", dest="as_shared", action="store_true", help="Set all imported credentials as shared identities."
     )
     parser.add_argument("--client-id", type=int, help="Link all imported credentials to a specific client ID.")
     args = parser.parse_args()

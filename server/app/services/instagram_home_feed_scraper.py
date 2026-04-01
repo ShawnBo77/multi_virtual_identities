@@ -22,7 +22,7 @@ class InstagramHomeFeedScraper:
         self._stop_event = threading.Event()
         self._thread = None
         self.driver = None
-        self.SCRAPE_INTERVAL = 3600  # Scrape each eligible account once per hour
+        self.SCRAPE_INTERVAL = 3600  # Scrape each eligible identity once per hour
 
     def start(self):
         if self._thread and self._thread.is_alive():
@@ -80,7 +80,7 @@ class InstagramHomeFeedScraper:
 
                 self.driver = webdriver.Firefox(service=service, options=options)
 
-            # Inject cookies for the target account
+            # Inject cookies for the target identity
             cookies = cred.cookies or []
             if not inject_cookies(self.driver, "https://www.instagram.com/", cookies) or not verify_login_status(
                 self.driver
@@ -120,7 +120,7 @@ class InstagramHomeFeedScraper:
             while not self._stop_event.is_set():
                 db = SessionLocal()
                 try:
-                    # Get accounts where at least one user has enabled 'Sync Feed'
+                    # Get identities where at least one user has enabled 'Sync Feed'
                     eligible_creds = (
                         db.query(instagram_model.InstagramCredential)
                         .join(instagram_model.ClientInstagramCredential)
@@ -146,7 +146,7 @@ class InstagramHomeFeedScraper:
                         posts = scrape_home_feed(self.driver, 1, cred.username)
                         self._process_posts(db, cred.id, posts)
 
-                        time.sleep(random.uniform(60, 120))  # Delay between accounts
+                        time.sleep(random.uniform(60, 120))  # Delay between identities
 
                 finally:
                     db.close()

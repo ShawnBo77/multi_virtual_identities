@@ -296,7 +296,7 @@ def save_home_feed_nodes(nodes, cred_username):
 
 def scrape_home_feed(driver, num_posts_to_fetch, cred_username) -> List[Dict]:
     """
-    Scrapes the home feed (timeline) for the currently logged-in account.
+    Scrapes the home feed (timeline) for the currently logged-in Identity.
     """
     print("\n=== Starting Scrape for Home Feed ===")
     del driver.requests

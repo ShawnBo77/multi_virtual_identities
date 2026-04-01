@@ -236,7 +236,7 @@ async function renderCredsView() {
 
             if (creds.length === 0) {
                 credList.innerHTML =
-                    '<div style="text-align:center; color:#888;">No accounts linked.</div>';
+                    '<div style="text-align:center; color:#888;">No identities linked.</div>';
                 return;
             }
             const sharedCreds = creds.filter((c) => c.is_shared);
@@ -247,8 +247,8 @@ async function renderCredsView() {
                 private: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`,
             };
 
-            const renderList = (accounts, title, iconKey, iconClass) => {
-                if (accounts.length > 0) {
+            const renderList = (identities, title, iconKey, iconClass) => {
+                if (identities.length > 0) {
                     credList.innerHTML += `
                         <div class="cred-section-header">
                             <span class="header-icon ${iconClass}">${SVG_ICONS[iconKey]}</span>
@@ -256,7 +256,7 @@ async function renderCredsView() {
                         </div>
                     `;
 
-                    accounts.forEach((cred) => {
+                    identities.forEach((cred) => {
                         const div = document.createElement("div");
                         div.className = "cred-item";
                         div.innerHTML = `
@@ -284,15 +284,20 @@ async function renderCredsView() {
                 }
             };
 
-            renderList(sharedCreds, "Shared Accounts", "shared", "icon-shared");
+            renderList(
+                sharedCreds,
+                "Shared Identities",
+                "shared",
+                "icon-shared",
+            );
             renderList(
                 privateCreds,
-                "Private Accounts",
+                "Private Identities",
                 "private",
                 "icon-private",
             );
         } else {
-            credList.innerHTML = `<li>Error: ${response.message || "Could not load accounts."}</li>`;
+            credList.innerHTML = `<li>Error: ${response.message || "Could not load identities."}</li>`;
         }
     } catch (e) {
         credList.innerHTML = `<li>Error: Failed to communicate with the extension.</li>`;
@@ -400,7 +405,7 @@ addCredForm.addEventListener("submit", async (e) => {
     });
 
     if (response.status === "success") {
-        alert("Account saved!");
+        alert("Identity saved!");
         document.getElementById("cred-username").value = "";
         document.getElementById("cred-password").value = "";
         document.getElementById("cred-is-shared").checked = false;
@@ -411,7 +416,7 @@ addCredForm.addEventListener("submit", async (e) => {
     }
 
     btn.disabled = false;
-    btn.textContent = "Save Account";
+    btn.textContent = "Save Identity";
 });
 
 credList.addEventListener("change", async (e) => {
@@ -446,7 +451,7 @@ credList.addEventListener("click", async (e) => {
             username,
         });
         if (response.status === "success") {
-            console.log(`Account ${username} unlinked.`);
+            console.log(`Identity ${username} unlinked.`);
             renderCredsView(); // Refresh the list
         } else {
             alert(`Failed to unlink: ${response.message}`);

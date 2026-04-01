@@ -45,7 +45,7 @@
 
         <div class="tabs">
             <button class="tab-btn active" data-target="view-follow">Follows</button>
-            <button class="tab-btn" data-target="view-settings">Accounts</button>
+            <button class="tab-btn" data-target="view-settings">Identities</button>
         </div>
 
         <div id="view-follow" class="view-section active">
@@ -58,7 +58,7 @@
         </div>
 
         <div id="view-settings" class="view-section">
-            <h3>Instagram Accounts</h3>
+            <h3>Instagram Identities</h3>
             <form id="add-cred-form">
                 <div class="input-wrapper">
                     <input type="text" id="cred-username" placeholder="Username" required>
@@ -69,13 +69,13 @@
                 </div>
                 <div class="checkbox-container">
                     <input type="checkbox" id="cred-is-shared">
-                    <label for="cred-is-shared">Make this a shared account</label>
+                    <label for="cred-is-shared">Make this a shared identity</label>
                 </div>
                 <div class="checkbox-container" style="margin-top: 5px;">
                     <input type="checkbox" id="cred-fetch-feed">
-                    <label for="cred-fetch-feed">Sync Home Feed for this account</label>
+                    <label for="cred-fetch-feed">Sync Home Feed for this identity</label>
                 </div>
-                <button type="submit" style="width: 100%; margin-top: 10px;">Save Account</button>
+                <button type="submit" style="width: 100%; margin-top: 10px;">Save Identity</button>
             </form>
             <div id="cred-list" style="margin-top: 15px;"></div>
         </div>

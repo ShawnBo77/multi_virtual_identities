@@ -106,7 +106,7 @@ class CredentialStatus(str, enum.Enum):
     LOGIN_FAILED = "login_failed"  # Password incorrect or generic login error
     CHALLENGE = "challenge"  # 2FA or Challenge required (Manual intervention needed)
     INACTIVE = "inactive"  # Manually disabled by user
-    LOCKED = "locked"  # Account banned or locked
+    LOCKED = "locked"  # Identity banned or locked
 
 
 class ClientInstagramCredential(Base):
