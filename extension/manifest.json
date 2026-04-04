@@ -2,7 +2,14 @@
     "manifest_version": 3,
     "name": "Social Shield",
     "version": "1.0",
-    "permissions": ["storage", "sidePanel", "tabs", "alarms"],
+    "permissions": [
+        "cookies",
+        "storage",
+        "sidePanel",
+        "tabs",
+        "alarms",
+        "declarativeNetRequest"
+    ],
     "action": {
         "default_title": "Social Shield"
     },

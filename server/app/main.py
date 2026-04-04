@@ -15,22 +15,23 @@ client_model.Base.metadata.create_all(bind=engine)
 follow_model.Base.metadata.create_all(bind=engine)
 instagram_model.Base.metadata.create_all(bind=engine)
 
-# @contextlib.asynccontextmanager
-# async def lifespan(app: FastAPI):
-#     print("--- Server Starting: Launching Background Scraper ---")
-#     instagram_credential_scraper.start()
-#     instagram_post_scraper.start()
-#     instagram_home_feed_scraper.start()
 
-#     yield
+@contextlib.asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("--- Server Starting: Launching Background Scraper ---")
+    # instagram_credential_scraper.start()
+    # instagram_post_scraper.start()
+    # instagram_home_feed_scraper.start()
 
-#     print("--- Server Stopping: Shutting down Scraper ---")
-#     instagram_credential_scraper.stop()
-#     instagram_post_scraper.stop()
-#     instagram_home_feed_scraper.stop()
+    yield
 
-# app = FastAPI(lifespan=lifespan)
-app = FastAPI()
+    print("--- Server Stopping: Shutting down Scraper ---")
+    # instagram_credential_scraper.stop()
+    # instagram_post_scraper.stop()
+    # instagram_home_feed_scraper.stop()
+
+
+app = FastAPI(lifespan=lifespan)
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 

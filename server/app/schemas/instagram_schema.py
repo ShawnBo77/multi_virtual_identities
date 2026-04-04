@@ -182,5 +182,13 @@ class CredentialResponse(BaseModel):
         from_attributes = True
 
 
+class CredentialWithCookiesResponse(CredentialResponse):
+    cookies: Optional[list] = None
+    user_agent: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class CredentialSettingsUpdate(BaseModel):
     fetch_feed: bool

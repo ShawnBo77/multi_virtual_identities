@@ -6,6 +6,13 @@ let pendingChanges = {};
 let CLIENT_ID = null;
 let isSyncing = false;
 
+const PLATFORM_CONFIG = {
+    instagram: {
+        ruleId: 1001,
+        filter: "*://*.instagram.com/*",
+    },
+};
+
 // ==========================================
 // Client ID Management (NEW & CENTRALIZED)
 // ==========================================
@@ -245,6 +252,45 @@ async function fetchFollowingsFromServer() {
 }
 
 // ==========================================
+// Update User-Agent
+// ==========================================
+
+async function updatePlatformUA(platform, userAgent) {
+    const config = PLATFORM_CONFIG[platform];
+    if (!config || !userAgent) return;
+
+    await chrome.declarativeNetRequest.updateDynamicRules({
+        removeRuleIds: [config.ruleId],
+        addRules: [
+            {
+                id: config.ruleId,
+                priority: 1,
+                action: {
+                    type: "modifyHeaders",
+                    requestHeaders: [
+                        {
+                            header: "user-agent",
+                            operation: "set",
+                            value: userAgent,
+                        },
+                    ],
+                },
+                condition: {
+                    urlFilter: config.filter,
+                    resourceTypes: [
+                        "main_frame",
+                        "sub_frame",
+                        "xmlhttprequest",
+                        "script",
+                    ],
+                },
+            },
+        ],
+    });
+    console.log(`[Background] User-Agent rule updated for ${platform}.`);
+}
+
+// ==========================================
 // Event Listeners & Initialization
 // ==========================================
 
@@ -452,6 +498,80 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 .catch((err) =>
                     sendResponse({ status: "error", message: err.message }),
                 );
+            return true;
+        }
+        // switchIdentity
+        else if (request.action === "switchIdentity") {
+            const { platform, username } = request;
+
+            try {
+                const response = await fetch(
+                    `${API_BASE_URL}/instagram/credentials/${username}`,
+                    {
+                        headers: { "Client-ID": CLIENT_ID },
+                    },
+                );
+
+                if (!response.ok)
+                    throw new Error("Failed to fetch cookies from server");
+
+                const data = await response.json();
+                if (!data.cookies || data.cookies.length === 0) {
+                    throw new Error("No valid cookies found for this identity");
+                }
+
+                console.log(`[Background] Switching to identity: ${username}`);
+
+                const storageKey = `active_user_${platform}`;
+                await chrome.storage.local.set({
+                    [storageKey]: username,
+                });
+
+                // Update User-Agent
+                if (data.user_agent) {
+                    await updatePlatformUA(platform, data.user_agent);
+                }
+
+                // Clear existing Instagram cookies to avoid session conflicts
+                const currentCookies = await chrome.cookies.getAll({
+                    domain: ".instagram.com",
+                });
+                for (let cookie of currentCookies) {
+                    await chrome.cookies.remove({
+                        url: `https://www.instagram.com${cookie.path}`,
+                        name: cookie.name,
+                    });
+                }
+
+                // Inject new cookies
+                for (let c of data.cookies) {
+                    // Map Selenium cookie format to Chrome Extension format
+                    await chrome.cookies.set({
+                        url: "https://www.instagram.com",
+                        name: c.name,
+                        value: c.value,
+                        domain: c.domain || ".instagram.com",
+                        path: c.path || "/",
+                        secure: c.secure || true,
+                        httpOnly: c.httpOnly || false,
+                        expirationDate:
+                            c.expiry || Date.now() / 1000 + 3600 * 24 * 30, // Default 30 days
+                    });
+                }
+
+                // Reload active Instagram tabs to apply the new identity
+                chrome.tabs.query({ url: "*://*.instagram.com/*" }, (tabs) => {
+                    tabs.forEach((tab) => chrome.tabs.reload(tab.id));
+                });
+
+                sendResponse({
+                    status: "success",
+                    message: `Switched to ${username}`,
+                });
+            } catch (err) {
+                console.error("[Background] Identity switch error:", err);
+                sendResponse({ status: "error", message: err.message });
+            }
             return true;
         }
     })();

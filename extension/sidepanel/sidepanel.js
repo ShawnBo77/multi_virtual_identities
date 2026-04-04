@@ -247,6 +247,11 @@ async function renderCredsView() {
                 private: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`,
             };
 
+            const storage = await chrome.storage.local.get(
+                "active_user_instagram",
+            );
+            const activeUsername = storage.active_user_instagram;
+
             const renderList = (identities, title, iconKey, iconClass) => {
                 if (identities.length > 0) {
                     credList.innerHTML += `
@@ -257,9 +262,15 @@ async function renderCredsView() {
                     `;
 
                     identities.forEach((cred) => {
+                        const isActive = cred.username === activeUsername;
                         const div = document.createElement("div");
-                        div.className = "cred-item";
+                        div.className = `cred-item ${isActive ? "active" : ""}`;
                         div.innerHTML = `
+                            <button class="switch-identity-btn" data-username="${cred.username}" title="Switch to this account" 
+                                ${cred.status !== "success" ? "disabled" : ""}>
+                                ${isActive ? "🟢" : "🔄"}
+                            </button>
+
                             <span class="cred-username" title="${cred.username}">${cred.username}</span>
                             
                             <span class="status-badge status-${cred.status.toLowerCase()}">
@@ -300,7 +311,7 @@ async function renderCredsView() {
             credList.innerHTML = `<li>Error: ${response.message || "Could not load identities."}</li>`;
         }
     } catch (e) {
-        credList.innerHTML = `<li>Error: Failed to communicate with the extension.</li>`;
+        credList.innerHTML = `${e.message} <li>Error: Failed to communicate with the extension.</li>`;
     }
 }
 
@@ -438,6 +449,9 @@ credList.addEventListener("change", async (e) => {
 });
 
 credList.addEventListener("click", async (e) => {
+    const username = e.target.dataset.username;
+    if (!username) return;
+
     if (e.target.classList.contains("delete-cred-btn")) {
         const username = e.target.dataset.username;
         if (!username) return;
@@ -448,7 +462,7 @@ credList.addEventListener("click", async (e) => {
 
         const response = await chrome.runtime.sendMessage({
             action: "deleteCredential",
-            username,
+            username: username,
         });
         if (response.status === "success") {
             console.log(`Identity ${username} unlinked.`);
@@ -458,6 +472,38 @@ credList.addEventListener("click", async (e) => {
             e.target.disabled = false;
             e.target.textContent = "✖";
         }
+    } else if (e.target.classList.contains("switch-identity-btn")) {
+        const [tab] = await chrome.tabs.query({
+            active: true,
+            currentWindow: true,
+        });
+        const isInstagramPage = tab.url.includes("instagram.com");
+        if (!isInstagramPage) {
+            alert("⚠️ Please open an Instagram tab to switch this identity.");
+            return;
+        }
+
+        console.log(`[Sidepanel] Requesting switch to: ${username}`);
+        const btn = e.target;
+        btn.disabled = true;
+        btn.textContent = "⏳";
+
+        const response = await chrome.runtime.sendMessage({
+            action: "switchIdentity",
+            username: username,
+            platform: "instagram",
+        });
+
+        if (response.status === "success") {
+            renderCredsView();
+            alert(
+                `Successfully switched to @${username}. User-Agent & Cookies updated.`,
+            );
+        } else {
+            alert(`Switch failed: ${response.message}`);
+        }
+        btn.disabled = false;
+        btn.textContent = "🔄";
     }
 });
 

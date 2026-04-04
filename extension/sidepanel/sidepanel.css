@@ -282,6 +282,7 @@ h1 {
     overflow: hidden;
     text-overflow: ellipsis;
     margin-right: 10px;
+    margin-left: 5px;
 }
 
 /* Column 2: Status Badge */

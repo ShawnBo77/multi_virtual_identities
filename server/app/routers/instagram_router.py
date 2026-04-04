@@ -191,6 +191,30 @@ def get_credentials(client_id: int = Header(..., alias="Client-ID"), db: Session
     return creds
 
 
+@router.get(
+    "/credentials/{username}",
+    response_model=instagram_schema.CredentialWithCookiesResponse,
+    summary="Get full credential details including cookies for switching",
+)
+def get_credential_detail(
+    username: str, client_id: int = Header(..., alias="Client-ID"), db: Session = Depends(get_db)
+):
+    """
+    Retrieves the full credential object (including cookies) if the client is linked to it.
+    """
+    # Verify if this client actually owns/is linked to this credential
+    creds = instagram_service.get_credentials_by_client(db, client_id)
+    if not any(c["username"] == username for c in creds):
+        raise HTTPException(status_code=403, detail="You do not have access to this identity.")
+
+    # Get the full object
+    db_cred = instagram_service.get_credential_by_username(db, username)
+    if not db_cred:
+        raise HTTPException(status_code=404, detail="Credential not found.")
+
+    return db_cred
+
+
 @router.delete("/credentials/{username}", status_code=204, summary="Unlink an Instagram identity from a Client")
 def unlink_credential(username: str, client_id: int = Header(..., alias="Client-ID"), db: Session = Depends(get_db)):
     """
