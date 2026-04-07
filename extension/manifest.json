@@ -17,7 +17,8 @@
         "default_path": "sidepanel/sidepanel.html"
     },
     "background": {
-        "service_worker": "background.js"
+        "service_worker": "background/background.js",
+        "type": "module"
     },
     "host_permissions": [
         "http://127.0.0.1:8000/*",
@@ -27,14 +28,14 @@
         {
             "matches": ["https://*.instagram.com/*"],
             "js": [
-                "common/constant.js",
-                "common/client.js",
-                "platforms/instagram/icons.js",
-                "platforms/instagram/follow.js",
-                "platforms/instagram/post.js",
-                "content.js"
+                "content_scripts/common/constant.js",
+                "content_scripts/common/client.js",
+                "content_scripts/platforms/instagram/icons.js",
+                "content_scripts/platforms/instagram/follow.js",
+                "content_scripts/platforms/instagram/post.js",
+                "content_scripts/content.js"
             ],
-            "css": ["style.css"],
+            "css": ["content_scripts/platforms/instagram/instagram.css"],
             "run_at": "document_end"
         }
     ]

@@ -21,11 +21,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // Listen for storage changes
 chrome.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === "local") {
-        if (changes.serverCache)
-            serverCache = changes.serverCache.newValue || {};
-        if (changes.pendingChanges)
-            pendingChanges = changes.pendingChanges.newValue || {};
+    if (namespace === "local" && CLIENT_ID) {
+        const cacheKey = `serverCache_${CLIENT_ID}`;
+        const pendingKey = `pendingChanges_${CLIENT_ID}`;
+
+        if (changes[cacheKey]) {
+            serverCache = changes[cacheKey].newValue || {};
+            // console.log("[content.js] serverCache updated for client", CLIENT_ID);
+        }
+        if (changes[pendingKey]) {
+            pendingChanges = changes[pendingKey].newValue || {};
+        }
+
+        if (changes.clientID) {
+            location.reload();
+        }
     }
 });
 

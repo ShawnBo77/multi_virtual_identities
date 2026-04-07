@@ -1,8 +1,9 @@
 const API_BASE_URL = "http://127.0.0.1:8000";
 
 // Centralized state
-let serverCache = {};
+let followingCache = {};
 let pendingChanges = {};
+let credentialsCache = [];
 let CLIENT_ID = null;
 let isSyncing = false;
 
@@ -14,7 +15,7 @@ const PLATFORM_CONFIG = {
 };
 
 // ==========================================
-// Client ID Management (NEW & CENTRALIZED)
+// Client ID Management
 // ==========================================
 
 /**
@@ -40,8 +41,13 @@ async function handleUserAuth(mode, payload) {
                 username: data.username,
             });
 
+            // load Cache for the client
+            await loadState();
+
             // Re-initialize alarms after successful login
             initializeAlarms();
+            fetchFollowingsFromServer();
+            fetchCredentialsFromServer();
             return { status: "success", data: data };
         } else {
             return {
@@ -60,21 +66,33 @@ async function handleUserAuth(mode, payload) {
 // ==========================================
 
 async function loadState() {
-    const data = await chrome.storage.local.get([
-        "serverCache",
-        "pendingChanges",
-        "clientID",
-    ]);
-    serverCache = data.serverCache || {};
-    pendingChanges = data.pendingChanges || {};
-    CLIENT_ID = data.clientID || null;
-    console.log("[Background] State loaded.");
+    const { clientID } = await chrome.storage.local.get("clientID");
+    CLIENT_ID = clientID || null;
+
+    if (!CLIENT_ID) {
+        followingCache = {};
+        pendingChanges = {};
+        return;
+    }
+
+    const cacheKey = `serverCache_${CLIENT_ID}`;
+    const pendingKey = `pendingChanges_${CLIENT_ID}`;
+
+    const data = await chrome.storage.local.get([cacheKey, pendingKey]);
+    followingCache = data[cacheKey] || {};
+    pendingChanges = data[pendingKey] || {};
+    console.log(`[Background] State loaded for client: ${CLIENT_ID}`);
 }
 
 async function saveState() {
+    if (!CLIENT_ID) return;
+
+    const cacheKey = `serverCache_${CLIENT_ID}`;
+    const pendingKey = `pendingChanges_${CLIENT_ID}`;
+
     await chrome.storage.local.set({
-        serverCache: serverCache,
-        pendingChanges: pendingChanges,
+        [cacheKey]: followingCache,
+        [pendingKey]: pendingChanges,
     });
 }
 
@@ -91,8 +109,8 @@ async function broadcastStateUpdate() {
 
 function getEffectiveFollowList() {
     const effectiveSet = new Set();
-    Object.keys(serverCache).forEach((username) => {
-        if (serverCache[username] && serverCache[username].isFollowing) {
+    Object.keys(followingCache).forEach((username) => {
+        if (followingCache[username] && followingCache[username].isFollowing) {
             effectiveSet.add(username);
         }
     });
@@ -135,7 +153,7 @@ async function processSync() {
     const username = usersToSync[0];
     const action = pendingChanges[username];
 
-    const serverData = serverCache[username];
+    const serverData = followingCache[username];
     const serverTimestamp = serverData ? serverData.timestamp : 0;
 
     // If Server data is newer, discard local action
@@ -182,7 +200,7 @@ async function processSync() {
 
         if (success) {
             console.log(`[Background] Sync success for ${username}`);
-            serverCache[username] = {
+            followingCache[username] = {
                 timestamp: action.timestamp,
                 isFollowing: action.type === "FOLLOW",
             };
@@ -242,12 +260,28 @@ async function fetchFollowingsFromServer() {
             }
         });
 
-        serverCache = newServerCache;
+        followingCache = newServerCache;
         await saveState();
         await broadcastStateUpdate();
         processSync(); // Trigger sync for any remaining items
     } catch (error) {
         console.error("[Background] Failed to fetch server list:", error);
+    }
+}
+
+async function fetchCredentialsFromServer() {
+    if (!CLIENT_ID) return;
+    try {
+        const res = await fetch(`${API_BASE_URL}/instagram/credentials`, {
+            headers: { "Client-ID": CLIENT_ID },
+        });
+        if (res.ok) {
+            credentialsCache = await res.json();
+            console.log("[Background] Credentials cache updated.");
+            broadcastStateUpdate();
+        }
+    } catch (err) {
+        console.error("[Background] Failed to fetch credentials:", err);
     }
 }
 
@@ -301,10 +335,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 
     if (request.action === "logout") {
+        const cacheKey = `serverCache_${CLIENT_ID}`;
+        const pendingKey = `pendingChanges_${CLIENT_ID}`;
+
         chrome.storage.local.remove(
-            ["clientID", "username", "serverCache", "pendingChanges"],
+            ["clientID", "username", cacheKey, pendingKey],
             () => {
                 CLIENT_ID = null;
+                followingCache = {};
+                pendingChanges = {};
+                credentialsCache = [];
                 chrome.alarms.clearAll();
                 sendResponse({ status: "success" });
             },
@@ -386,12 +426,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             sendResponse({
                 status: "success",
                 data: {
-                    serverCache: serverCache,
+                    followings: followingCache,
                     pendingChanges: pendingChanges,
                     effectiveFollowList: effectiveList,
+                    credentials: credentialsCache,
                     clientID: CLIENT_ID,
                 },
             });
+            return true;
+        }
+        // triggerFollowListSync
+        else if (request.action === "triggerFollowListSync") {
+            fetchFollowingsFromServer();
+            sendResponse({ status: "sync_started" });
             return true;
         }
         // getCredentials
@@ -403,18 +450,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 });
                 return true;
             }
-            fetch(`${API_BASE_URL}/instagram/credentials`, {
-                headers: { "Client-ID": CLIENT_ID },
-            })
-                .then((res) => {
-                    if (!res.ok) throw new Error(`Server error: ${res.status}`);
-                    return res.json();
-                })
-                .then((data) => sendResponse({ status: "success", data: data }))
-                .catch((err) =>
-                    sendResponse({ status: "error", message: err.message }),
-                );
-            return true; // Keep the message channel open for the async response
+            fetchCredentialsFromServer();
+            sendResponse({ status: "sync_started" });
+            return true;
         }
         // addCredential
         else if (request.action === "addCredential") {
@@ -436,6 +474,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 .then(async (res) => {
                     if (res.ok) {
                         sendResponse({ status: "success" });
+                        fetchCredentialsFromServer();
                     } else {
                         const err = await res.json();
                         sendResponse({
@@ -464,8 +503,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     }),
                 },
             )
-                .then((res) => res.json())
-                .then((data) => sendResponse({ status: "success", data }))
+                .then(async (res) => {
+                    if (res.ok) {
+                        await fetchCredentialsFromServer();
+                        sendResponse({ status: "success" });
+                    } else {
+                        const errData = await res.json();
+                        sendResponse({
+                            status: "error",
+                            message:
+                                errData.detail || "Failed to update settings",
+                        });
+                    }
+                })
                 .catch((err) =>
                     sendResponse({ status: "error", message: err.message }),
                 );
@@ -484,9 +534,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 method: "DELETE",
                 headers: { "Client-ID": CLIENT_ID },
             })
-                .then((res) => {
+                .then(async (res) => {
                     if (res.ok) {
                         // Handles 204 No Content
+                        await fetchCredentialsFromServer();
                         sendResponse({ status: "success" });
                     } else {
                         sendResponse({
@@ -588,7 +639,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === "process-sync") {
         processSync();
     }
-    if (alarm.name === "fetch-server-list") {
+    if (alarm.name === "fetch-following-list") {
         fetchFollowingsFromServer();
     }
 });
@@ -599,7 +650,7 @@ function initializeAlarms() {
         delayInMinutes: 0.1,
         periodInMinutes: 1,
     });
-    chrome.alarms.create("fetch-server-list", {
+    chrome.alarms.create("fetch-following-list", {
         delayInMinutes: 0.2,
         periodInMinutes: 1,
     });

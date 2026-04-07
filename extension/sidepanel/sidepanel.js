@@ -1,15 +1,21 @@
-const API_BASE_URL = "http://127.0.0.1:8000";
+import {
+    renderInsFollowList,
+    renderInsCredList,
+    isInstagramTabActive,
+} from "./instagram/instagram_ui.js";
 
 let currentState = {
     effectiveFollowList: [],
     clientID: null,
 };
 
+const authSection = document.getElementById("auth-section");
+const mainContent = document.getElementById("main-content");
 const usernameInput = document.getElementById("username-input");
 const addFollowForm = document.getElementById("add-follow-form");
-const followList = document.getElementById("follow-list");
+const followListContainer = document.getElementById("follow-list");
 const addCredForm = document.getElementById("add-cred-form");
-const credList = document.getElementById("cred-list");
+const credListContainer = document.getElementById("cred-list");
 const viewSavedBtn = document.getElementById("view-saved-btn");
 
 // ==========================================
@@ -17,8 +23,6 @@ const viewSavedBtn = document.getElementById("view-saved-btn");
 // ==========================================
 async function checkAuthStatus() {
     const data = await chrome.storage.local.get(["clientID", "username"]);
-    const authSection = document.getElementById("auth-section");
-    const mainContent = document.getElementById("main-content");
 
     if (data.clientID) {
         authSection.style.display = "none";
@@ -155,187 +159,36 @@ document.addEventListener("DOMContentLoaded", checkAuthStatus);
 // ==========================================
 // UI rendering
 // ==========================================
-
-async function checkAuthStatus() {
-    const data = await chrome.storage.local.get(["clientID", "username"]);
-    const authSection = document.getElementById("auth-section");
-    const mainContent = document.getElementById("main-content");
-
-    if (data.clientID) {
-        authSection.style.display = "none";
-        mainContent.style.display = "block";
-        document.getElementById("display-username").textContent =
-            `User: ${data.username}`;
-        refreshStateAndRender(); // Fetch follows and render
-    } else {
-        authSection.style.display = "block";
-        mainContent.style.display = "none";
-    }
-}
-
-function renderAll() {
-    renderFollowList();
-    if (document.getElementById("view-settings").classList.contains("active")) {
-        renderCredsView();
-    }
-}
-
-async function renderFollowList() {
-    followList.innerHTML = "";
-    const { effectiveFollowList } = currentState;
-    if (effectiveFollowList.length === 0) {
-        followList.innerHTML =
-            '<li style="color:#888; text-align:center;">No users followed yet</li>';
-        return;
-    }
-
-    effectiveFollowList.forEach((username) => {
-        const li = document.createElement("li");
-        li.dataset.username = username;
-        li.style.display = "flex";
-        li.style.justifyContent = "space-between";
-        li.style.alignItems = "center";
-        li.style.padding = "8px 0";
-        li.style.borderBottom = "1px solid #eee";
-
-        const userSpan = document.createElement("span");
-        userSpan.textContent = username;
-        userSpan.style.fontWeight = "500";
-
-        const removeBtn = document.createElement("button");
-        removeBtn.className = "remove-btn";
-        removeBtn.textContent = "Unfollow";
-        removeBtn.style.backgroundColor = "#ff4d4d";
-        removeBtn.style.color = "white";
-        removeBtn.style.border = "none";
-        removeBtn.style.padding = "4px 8px";
-        removeBtn.style.borderRadius = "4px";
-        removeBtn.style.cursor = "pointer";
-
-        li.appendChild(userSpan);
-        li.appendChild(removeBtn);
-        followList.appendChild(li);
-    });
-}
-
-async function renderCredsView() {
-    if (!currentState.clientID) {
-        credList.innerHTML =
-            '<div style="text-align:center; color:#888;">Client ID not available.</div>';
-        return;
-    }
-
-    credList.innerHTML = "<li>Loading...</li>";
-    try {
-        const response = await chrome.runtime.sendMessage({
-            action: "getCredentials",
-        });
-        if (response && response.status === "success") {
-            const creds = response.data;
-            credList.innerHTML = "";
-
-            if (creds.length === 0) {
-                credList.innerHTML =
-                    '<div style="text-align:center; color:#888;">No identities linked.</div>';
-                return;
-            }
-            const sharedCreds = creds.filter((c) => c.is_shared);
-            const privateCreds = creds.filter((c) => !c.is_shared);
-
-            const SVG_ICONS = {
-                shared: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>`,
-                private: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`,
-            };
-
-            const storage = await chrome.storage.local.get(
-                "active_user_instagram",
-            );
-            const activeUsername = storage.active_user_instagram;
-
-            const renderList = (identities, title, iconKey, iconClass) => {
-                if (identities.length > 0) {
-                    credList.innerHTML += `
-                        <div class="cred-section-header">
-                            <span class="header-icon ${iconClass}">${SVG_ICONS[iconKey]}</span>
-                            <span class="header-text">${title}</span>
-                        </div>
-                    `;
-
-                    identities.forEach((cred) => {
-                        const isActive = cred.username === activeUsername;
-                        const div = document.createElement("div");
-                        div.className = `cred-item ${isActive ? "active" : ""}`;
-                        div.innerHTML = `
-                            <button class="switch-identity-btn" data-username="${cred.username}" title="Switch to this account" 
-                                ${cred.status !== "success" ? "disabled" : ""}>
-                                ${isActive ? "🟢" : "🔄"}
-                            </button>
-
-                            <span class="cred-username" title="${cred.username}">${cred.username}</span>
-                            
-                            <span class="status-badge status-${cred.status.toLowerCase()}">
-                                ${cred.status.toUpperCase()}
-                            </span>
-
-                            <div class="cred-actions">
-                                <div class="toggle-container">
-                                    <span class="toggle-label">Sync Feed</span>
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" class="fetch-feed-toggle" 
-                                            data-username="${cred.username}" 
-                                            ${cred.fetch_feed ? "checked" : ""}>
-                                        <span class="slider"></span>
-                                    </label>
-                                </div>
-                                <button class="delete-cred-btn" data-username="${cred.username}">✖</button>
-                            </div>
-                        `;
-                        credList.appendChild(div);
-                    });
-                }
-            };
-
-            renderList(
-                sharedCreds,
-                "Shared Identities",
-                "shared",
-                "icon-shared",
-            );
-            renderList(
-                privateCreds,
-                "Private Identities",
-                "private",
-                "icon-private",
-            );
-        } else {
-            credList.innerHTML = `<li>Error: ${response.message || "Could not load identities."}</li>`;
-        }
-    } catch (e) {
-        credList.innerHTML = `${e.message} <li>Error: Failed to communicate with the extension.</li>`;
-    }
-}
-
 async function refreshStateAndRender() {
     console.log("[Sidepanel] Requesting state from background...");
+
+    const isFollowView = document
+        .getElementById("view-follow")
+        .classList.contains("active");
+    const isSettingsView = document
+        .getElementById("view-settings")
+        .classList.contains("active");
+
     try {
         const response = await chrome.runtime.sendMessage({
             action: "getState",
         });
-        if (response && response.status === "success") {
+        if (response?.status === "success") {
             // Update the global state object
             currentState = response.data;
-            renderAll();
-        } else {
-            console.error(
-                "[Sidepanel] Failed to get state:",
-                response?.message,
-            );
-            followList.innerHTML =
-                '<li style="color:red;">Error loading data. Try reloading the extension.</li>';
+            // Render Platform UI
+            if (isFollowView) {
+                renderInsFollowList(
+                    followListContainer,
+                    currentState.effectiveFollowList,
+                );
+            } else if (isSettingsView) {
+                renderInsCredList(credListContainer, currentState.credentials);
+            }
         }
     } catch (error) {
         console.error("[Sidepanel] Error requesting state:", error);
-        followList.innerHTML =
+        followListContainer.innerHTML =
             '<li style="color:red;">The extension background service may have been disconnected.</li>';
     }
 }
@@ -343,7 +196,6 @@ async function refreshStateAndRender() {
 // ==========================================
 // Event Listeners
 // ==========================================
-
 addFollowForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const username = usernameInput.value.trim();
@@ -372,7 +224,7 @@ addFollowForm.addEventListener("submit", async (e) => {
     btn.textContent = "Add Follow";
 });
 
-followList.addEventListener("click", async (e) => {
+followListContainer.addEventListener("click", async (e) => {
     if (e.target.classList.contains("remove-btn")) {
         const li = e.target.closest("li");
         const username = li.dataset.username;
@@ -421,7 +273,7 @@ addCredForm.addEventListener("submit", async (e) => {
         document.getElementById("cred-password").value = "";
         document.getElementById("cred-is-shared").checked = false;
         document.getElementById("cred-fetch-feed").checked = false;
-        renderCredsView(); // Re-render this section
+        refreshStateAndRender(); // Re-render this section
     } else {
         alert(`Failed: ${response.message || "Unknown error"}`);
     }
@@ -430,7 +282,7 @@ addCredForm.addEventListener("submit", async (e) => {
     btn.textContent = "Save Identity";
 });
 
-credList.addEventListener("change", async (e) => {
+credListContainer.addEventListener("change", async (e) => {
     if (e.target.classList.contains("fetch-feed-toggle")) {
         const username = e.target.dataset.username;
         const isEnabled = e.target.checked;
@@ -448,7 +300,7 @@ credList.addEventListener("change", async (e) => {
     }
 });
 
-credList.addEventListener("click", async (e) => {
+credListContainer.addEventListener("click", async (e) => {
     const username = e.target.dataset.username;
     if (!username) return;
 
@@ -466,7 +318,7 @@ credList.addEventListener("click", async (e) => {
         });
         if (response.status === "success") {
             console.log(`Identity ${username} unlinked.`);
-            renderCredsView(); // Refresh the list
+            refreshStateAndRender(); // Refresh the list
         } else {
             alert(`Failed to unlink: ${response.message}`);
             e.target.disabled = false;
@@ -495,7 +347,7 @@ credList.addEventListener("click", async (e) => {
         });
 
         if (response.status === "success") {
-            renderCredsView();
+            refreshStateAndRender();
             alert(
                 `Successfully switched to @${username}. User-Agent & Cookies updated.`,
             );
@@ -530,6 +382,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
+        const targetId = btn.dataset.target;
+
+        // UI Switch: Update active states for tabs and sections
         document
             .querySelectorAll(".tab-btn")
             .forEach((b) => b.classList.remove("active"));
@@ -538,9 +393,12 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
             .forEach((v) => v.classList.remove("active"));
         btn.classList.add("active");
         document.getElementById(btn.dataset.target).classList.add("active");
-        if (btn.dataset.target === "view-settings") {
-            renderCredsView();
+        if (targetId === "view-follow") {
+            chrome.runtime.sendMessage({ action: "triggerFollowListSync" });
+        } else if (targetId === "view-settings") {
+            chrome.runtime.sendMessage({ action: "getCredentials" });
         }
+        refreshStateAndRender();
     });
 });
 
