@@ -150,83 +150,91 @@ async function processSync() {
     if (usersToSync.length === 0) return;
 
     isSyncing = true;
-    const username = usersToSync[0];
-    const action = pendingChanges[username];
-
-    const serverData = followingCache[username];
-    const serverTimestamp = serverData ? serverData.timestamp : 0;
-
-    // If Server data is newer, discard local action
-    if (serverTimestamp > action.timestamp) {
-        console.log(`[Background] Action outdated for ${username}. Dropping.`);
-        delete pendingChanges[username];
-        await saveState();
-        isSyncing = false;
-        await broadcastStateUpdate();
-        processSync(); // Check for next item
-        return;
-    }
-
-    console.log(`[IG Injector] Syncing to Server: ${action.type} ${username}`);
+    let hasChanged = false;
 
     try {
-        let success = false;
-        let response;
+        for (const username of usersToSync) {
+            const action = pendingChanges[username];
+            const serverData = followingCache[username];
+            const serverTimestamp = serverData ? serverData.timestamp : 0;
 
-        if (action.type === "FOLLOW") {
-            response = await fetch(`${API_BASE_URL}/instagram/followings`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Client-ID": CLIENT_ID,
-                },
-                body: JSON.stringify({ followed_username: username }),
-            });
-            if (response.ok || response.status === 409) success = true;
-        } else {
-            // UNFOLLOW
-            response = await fetch(
-                `${API_BASE_URL}/instagram/followings/${username}`,
-                {
-                    method: "DELETE",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Client-ID": CLIENT_ID,
-                    },
-                },
-            );
-            if (response.ok || response.status === 404) success = true;
-        }
+            // If Server data is newer, discard local action
+            if (serverTimestamp > action.timestamp) {
+                console.log(
+                    `[Background] Action outdated for ${username}. Dropping.`,
+                );
+                delete pendingChanges[username];
+                hasChanged = true;
+                continue;
+            }
 
-        if (success) {
-            console.log(`[Background] Sync success for ${username}`);
-            followingCache[username] = {
-                timestamp: action.timestamp,
-                isFollowing: action.type === "FOLLOW",
-            };
-            delete pendingChanges[username];
-            await saveState();
-        } else {
-            console.warn(
-                `[Sync] Server error (${response.status}) for ${username}. Will retry later.`,
-            );
+            try {
+                let success = false;
+                let response;
+
+                if (action.type === "FOLLOW") {
+                    response = await fetch(
+                        `${API_BASE_URL}/instagram/followings`,
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Client-ID": CLIENT_ID,
+                            },
+                            body: JSON.stringify({
+                                followed_username: username,
+                            }),
+                        },
+                    );
+                    if (response.ok || response.status === 409) success = true;
+                } else {
+                    // UNFOLLOW
+                    response = await fetch(
+                        `${API_BASE_URL}/instagram/followings/${username}`,
+                        {
+                            method: "DELETE",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Client-ID": CLIENT_ID,
+                            },
+                        },
+                    );
+                    if (response.ok || response.status === 404) success = true;
+                }
+
+                if (success) {
+                    console.log(
+                        `[Background] Sync successful: ${action.type} ${username}`,
+                    );
+                    followingCache[username] = {
+                        timestamp: action.timestamp,
+                        isFollowing: action.type === "FOLLOW",
+                    };
+                    delete pendingChanges[username];
+                    hasChanged = true;
+                } else {
+                    console.warn(
+                        `[Background] Server error (${response.status}) for ${username}.`,
+                    );
+                }
+            } catch (error) {
+                console.error(
+                    `[Background] Network failure during sync for ${username}:`,
+                    error,
+                );
+                break;
+            }
         }
-    } catch (error) {
-        console.error(
-            `[Background] Sync network failed for ${username}:`,
-            error,
-        );
     } finally {
         isSyncing = false;
-        await broadcastStateUpdate();
-        // If there are more items, process them after a short delay
-        if (Object.keys(pendingChanges).length > 0) {
-            setTimeout(processSync, 100);
+        if (hasChanged) {
+            await saveState();
+            await broadcastStateUpdate();
         }
     }
 }
 
-async function fetchFollowingsFromServer() {
+async function fetchFollowingsFromServer(shouldBroadcast = true) {
     if (!CLIENT_ID) return;
     console.log("[Background] Fetching followings from server...");
 
@@ -262,14 +270,16 @@ async function fetchFollowingsFromServer() {
 
         followingCache = newServerCache;
         await saveState();
-        await broadcastStateUpdate();
+        if (shouldBroadcast) {
+            await broadcastStateUpdate();
+        }
         processSync(); // Trigger sync for any remaining items
     } catch (error) {
         console.error("[Background] Failed to fetch server list:", error);
     }
 }
 
-async function fetchCredentialsFromServer() {
+async function fetchCredentialsFromServer(shouldBroadcast = true) {
     if (!CLIENT_ID) return;
     try {
         const res = await fetch(`${API_BASE_URL}/instagram/credentials`, {
@@ -278,7 +288,9 @@ async function fetchCredentialsFromServer() {
         if (res.ok) {
             credentialsCache = await res.json();
             console.log("[Background] Credentials cache updated.");
-            broadcastStateUpdate();
+            if (shouldBroadcast) {
+                broadcastStateUpdate();
+            }
         }
     } catch (err) {
         console.error("[Background] Failed to fetch credentials:", err);
@@ -639,8 +651,9 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === "process-sync") {
         processSync();
     }
-    if (alarm.name === "fetch-following-list") {
+    if (alarm.name === "fetch-data") {
         fetchFollowingsFromServer();
+        fetchCredentialsFromServer();
     }
 });
 
@@ -650,7 +663,7 @@ function initializeAlarms() {
         delayInMinutes: 0.1,
         periodInMinutes: 1,
     });
-    chrome.alarms.create("fetch-following-list", {
+    chrome.alarms.create("fetch-data", {
         delayInMinutes: 0.2,
         periodInMinutes: 1,
     });

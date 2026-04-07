@@ -1,22 +1,14 @@
-import {
-    renderInsFollowList,
-    renderInsCredList,
-    isInstagramTabActive,
-} from "./instagram/instagram_ui.js";
+import { InstagramUI } from "./instagram/instagram_ui.js";
 
-let currentState = {
-    effectiveFollowList: [],
-    clientID: null,
+// Define the supported platform
+const PLATFORM_DRIVERS = {
+    "instagram.com": InstagramUI,
 };
+
+let currentPlatform = null;
 
 const authSection = document.getElementById("auth-section");
 const mainContent = document.getElementById("main-content");
-const usernameInput = document.getElementById("username-input");
-const addFollowForm = document.getElementById("add-follow-form");
-const followListContainer = document.getElementById("follow-list");
-const addCredForm = document.getElementById("add-cred-form");
-const credListContainer = document.getElementById("cred-list");
-const viewSavedBtn = document.getElementById("view-saved-btn");
 
 // ==========================================
 // Toggle between Auth view and Main content based on login status
@@ -29,7 +21,8 @@ async function checkAuthStatus() {
         mainContent.style.display = "block";
         document.getElementById("display-username").textContent =
             `User: ${data.username}`;
-        refreshStateAndRender(); // Fetch follows and render
+        // Initialize the platform-specific UI
+        await mountPlatformUI();
     } else {
         authSection.style.display = "block";
         mainContent.style.display = "none";
@@ -159,247 +152,50 @@ document.addEventListener("DOMContentLoaded", checkAuthStatus);
 // ==========================================
 // UI rendering
 // ==========================================
-async function refreshStateAndRender() {
-    console.log("[Sidepanel] Requesting state from background...");
+async function mountPlatformUI() {
+    const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+    });
+    const mountPoint = document.getElementById("platform-mount");
 
-    const isFollowView = document
-        .getElementById("view-follow")
-        .classList.contains("active");
-    const isSettingsView = document
-        .getElementById("view-settings")
-        .classList.contains("active");
+    // Find the matching platform driver based on the current URL
+    const domain = Object.keys(PLATFORM_DRIVERS).find((d) =>
+        tab?.url?.includes(d),
+    );
 
-    try {
+    if (domain) {
+        currentPlatform = PLATFORM_DRIVERS[domain];
         const response = await chrome.runtime.sendMessage({
             action: "getState",
         });
-        if (response?.status === "success") {
-            // Update the global state object
-            currentState = response.data;
-            // Render Platform UI
-            if (isFollowView) {
-                renderInsFollowList(
-                    followListContainer,
-                    currentState.effectiveFollowList,
-                );
-            } else if (isSettingsView) {
-                renderInsCredList(credListContainer, currentState.credentials);
-            }
-        }
-    } catch (error) {
-        console.error("[Sidepanel] Error requesting state:", error);
-        followListContainer.innerHTML =
-            '<li style="color:red;">The extension background service may have been disconnected.</li>';
+        await currentPlatform.init(mountPoint, response.data);
+    } else {
+        mountPoint.innerHTML = `<p style="text-align:center; padding:20px; color:#666;">
+            Please open a supported platform (e.g. Instagram).
+        </p>`;
     }
 }
 
 // ==========================================
 // Event Listeners
 // ==========================================
-addFollowForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const username = usernameInput.value.trim();
-    if (!username) {
-        alert("Please enter a username.");
-        return;
-    }
-
-    // Disable input temporarily
-    usernameInput.disabled = true;
-    const btn = e.target.querySelector("button");
-    btn.disabled = true;
-    btn.textContent = "Adding...";
-
-    // Send action to background script
-    await chrome.runtime.sendMessage({
-        action: "recordAction",
-        type: "FOLLOW",
-        username: username,
-    });
-
-    // Reset UI
-    usernameInput.value = "";
-    usernameInput.disabled = false;
-    btn.disabled = false;
-    btn.textContent = "Add Follow";
-});
-
-followListContainer.addEventListener("click", async (e) => {
-    if (e.target.classList.contains("remove-btn")) {
-        const li = e.target.closest("li");
-        const username = li.dataset.username;
-
-        if (username) {
-            console.log(`[Popup] Unfollowing: ${username}`);
-            e.target.disabled = true;
-            e.target.textContent = "...";
-
-            // Send action to background script
-            await chrome.runtime.sendMessage({
-                action: "recordAction",
-                type: "UNFOLLOW",
-                username: username,
-            });
-        }
-    }
-});
-
-addCredForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const username = document.getElementById("cred-username").value.trim();
-    const password = document.getElementById("cred-password").value.trim();
-    const isShared = document.getElementById("cred-is-shared").checked;
-    const fetchFeed = document.getElementById("cred-fetch-feed").checked;
-    const btn = addCredForm.querySelector("button");
-
-    if (!username || !password) return;
-
-    btn.disabled = true;
-    btn.textContent = "Processing...";
-
-    const response = await chrome.runtime.sendMessage({
-        action: "addCredential",
-        payload: {
-            username,
-            password,
-            is_shared: isShared,
-            fetch_feed: fetchFeed,
-        },
-    });
-
-    if (response.status === "success") {
-        alert("Identity saved!");
-        document.getElementById("cred-username").value = "";
-        document.getElementById("cred-password").value = "";
-        document.getElementById("cred-is-shared").checked = false;
-        document.getElementById("cred-fetch-feed").checked = false;
-        refreshStateAndRender(); // Re-render this section
-    } else {
-        alert(`Failed: ${response.message || "Unknown error"}`);
-    }
-
-    btn.disabled = false;
-    btn.textContent = "Save Identity";
-});
-
-credListContainer.addEventListener("change", async (e) => {
-    if (e.target.classList.contains("fetch-feed-toggle")) {
-        const username = e.target.dataset.username;
-        const isEnabled = e.target.checked;
-
-        const response = await chrome.runtime.sendMessage({
-            action: "updateCredentialSettings",
-            username: username,
-            payload: { fetch_feed: isEnabled },
-        });
-
-        if (response.status !== "success") {
-            alert("Failed to update: " + response.message);
-            e.target.checked = !isEnabled;
-        }
-    }
-});
-
-credListContainer.addEventListener("click", async (e) => {
-    const username = e.target.dataset.username;
-    if (!username) return;
-
-    if (e.target.classList.contains("delete-cred-btn")) {
-        const username = e.target.dataset.username;
-        if (!username) return;
-        if (!confirm(`Are you sure you want to unlink "${username}"?`)) return;
-
-        e.target.disabled = true;
-        e.target.textContent = "...";
-
-        const response = await chrome.runtime.sendMessage({
-            action: "deleteCredential",
-            username: username,
-        });
-        if (response.status === "success") {
-            console.log(`Identity ${username} unlinked.`);
-            refreshStateAndRender(); // Refresh the list
-        } else {
-            alert(`Failed to unlink: ${response.message}`);
-            e.target.disabled = false;
-            e.target.textContent = "✖";
-        }
-    } else if (e.target.classList.contains("switch-identity-btn")) {
-        const [tab] = await chrome.tabs.query({
-            active: true,
-            currentWindow: true,
-        });
-        const isInstagramPage = tab.url.includes("instagram.com");
-        if (!isInstagramPage) {
-            alert("⚠️ Please open an Instagram tab to switch this identity.");
-            return;
-        }
-
-        console.log(`[Sidepanel] Requesting switch to: ${username}`);
-        const btn = e.target;
-        btn.disabled = true;
-        btn.textContent = "⏳";
-
-        const response = await chrome.runtime.sendMessage({
-            action: "switchIdentity",
-            username: username,
-            platform: "instagram",
-        });
-
-        if (response.status === "success") {
-            refreshStateAndRender();
-            alert(
-                `Successfully switched to @${username}. User-Agent & Cookies updated.`,
-            );
-        } else {
-            alert(`Switch failed: ${response.message}`);
-        }
-        btn.disabled = false;
-        btn.textContent = "🔄";
-    }
-});
-
-viewSavedBtn.addEventListener("click", () => {
-    chrome.runtime.sendMessage({ action: "showSavedPosts" }, (response) => {
-        if (!response || response.status === "error") {
-            alert(
-                response.message ||
-                    "Could not show saved posts. Is an Instagram tab open?",
-            );
-        }
-    });
-});
 
 // Listen for updates from the background script
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === "stateUpdated") {
-        console.log(
-            "[Sidepanel] Received state update from background. Re-rendering list.",
-        );
-        refreshStateAndRender();
+chrome.runtime.onMessage.addListener(async (request) => {
+    if (request.action === "stateUpdated" && currentPlatform) {
+        const response = await chrome.runtime.sendMessage({
+            action: "getState",
+        });
+        await currentPlatform.render(response.data);
     }
 });
 
-document.querySelectorAll(".tab-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-        const targetId = btn.dataset.target;
+// Reload Sidepanel content when the user switches browser tabs or the URL changes
+chrome.tabs.onActivated.addListener(mountPlatformUI);
 
-        // UI Switch: Update active states for tabs and sections
-        document
-            .querySelectorAll(".tab-btn")
-            .forEach((b) => b.classList.remove("active"));
-        document
-            .querySelectorAll(".view-section")
-            .forEach((v) => v.classList.remove("active"));
-        btn.classList.add("active");
-        document.getElementById(btn.dataset.target).classList.add("active");
-        if (targetId === "view-follow") {
-            chrome.runtime.sendMessage({ action: "triggerFollowListSync" });
-        } else if (targetId === "view-settings") {
-            chrome.runtime.sendMessage({ action: "getCredentials" });
-        }
-        refreshStateAndRender();
-    });
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.status === "complete") mountPlatformUI();
 });
 
-document.addEventListener("DOMContentLoaded", refreshStateAndRender);
+document.addEventListener("DOMContentLoaded", checkAuthStatus);
