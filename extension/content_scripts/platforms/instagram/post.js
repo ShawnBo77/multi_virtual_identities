@@ -65,6 +65,7 @@ async function handleSaveClick(event) {
             isSaved = !isSaved;
             saveButton.dataset.isSaved = isSaved;
             saveButton.innerHTML = isSaved ? ICONS.saveFilled : ICONS.save;
+            updateSaveUI(postId, isSaved);
         } else {
             console.error(
                 "[IG Injector] Failed to update save state on server.",
@@ -75,6 +76,19 @@ async function handleSaveClick(event) {
     } finally {
         saveButton.disabled = false;
     }
+}
+
+/**
+ * Updates save button in the current document for a specific post.
+ */
+function updateSaveUI(postId, isSaved) {
+    const buttons = document.querySelectorAll(
+        `button.save[data-post-id="${postId}"]`,
+    );
+    buttons.forEach((btn) => {
+        btn.dataset.isSaved = isSaved;
+        btn.innerHTML = isSaved ? ICONS.saveFilled : ICONS.save;
+    });
 }
 
 function sortMediaItems(mediaItems) {
@@ -423,6 +437,19 @@ function createSavedPostsModal() {
 
     document.body.appendChild(modalOverlay);
 
+    // Click a specific post in the saved posts overview(SavedPostsModal) to display that post(PostDetailModal).
+    const gridContainer = modalOverlay.querySelector(
+        ".saved-posts-grid-container",
+    );
+    gridContainer.addEventListener("click", (event) => {
+        const link = event.target.closest("a");
+        if (link && link.dataset.postCode) {
+            event.preventDefault();
+            // Open the detail view for the specific post
+            showPostDetailModal(link.dataset.postCode);
+        }
+    });
+
     const closeModal = () => {
         modalOverlay.classList.remove("visible");
     };
@@ -495,14 +522,6 @@ async function renderSavedPosts() {
 
         gridContainer.innerHTML = ""; // Clear loading message
         gridContainer.appendChild(grid);
-
-        gridContainer.addEventListener("click", (event) => {
-            const link = event.target.closest("a");
-            if (link && link.dataset.postCode) {
-                event.preventDefault(); // Stop the link from opening a new tab
-                showPostDetailModal(link.dataset.postCode);
-            }
-        });
     } catch (error) {
         console.error("[IG Injector] Failed to fetch saved posts:", error);
         gridContainer.innerHTML = `<p style="text-align:center; color:red;">Failed to load saved posts. Please try again later.</p>`;
