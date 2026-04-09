@@ -3,7 +3,7 @@
 async function getEffectiveFollowListFromBackground() {
     try {
         const response = await chrome.runtime.sendMessage({
-            action: "getEffectiveFollowList",
+            action: "instagram:getEffectiveFollowList",
         });
         if (response && response.status === "success") {
             return response.data || [];
@@ -54,7 +54,7 @@ async function showFollowButton(x, y, username) {
 
         // Send a message to background.js to handle storage.
         chrome.runtime.sendMessage({
-            action: "recordAction",
+            action: "instagram:recordAction",
             type: actionType,
             username: username,
         });

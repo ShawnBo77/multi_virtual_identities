@@ -168,10 +168,12 @@ export const InstagramUI = {
                     .classList.add("active");
                 if (targetId === "view-follow") {
                     chrome.runtime.sendMessage({
-                        action: "triggerFollowListSync",
+                        action: "instagram:triggerFollowListSync",
                     });
                 } else if (targetId === "view-settings") {
-                    chrome.runtime.sendMessage({ action: "getCredentials" });
+                    chrome.runtime.sendMessage({
+                        action: "instagram:getCredentials",
+                    });
                 }
             });
         });
@@ -195,7 +197,7 @@ export const InstagramUI = {
 
             // Send action to background script
             await chrome.runtime.sendMessage({
-                action: "recordAction",
+                action: "instagram:recordAction",
                 type: "FOLLOW",
                 username: username,
             });
@@ -222,7 +224,7 @@ export const InstagramUI = {
 
                     // Send action to background script
                     await chrome.runtime.sendMessage({
-                        action: "recordAction",
+                        action: "instagram:recordAction",
                         type: "UNFOLLOW",
                         username: username,
                     });
@@ -234,7 +236,7 @@ export const InstagramUI = {
         const viewSavedBtn = document.getElementById("view-saved-btn");
         viewSavedBtn.addEventListener("click", () => {
             chrome.runtime.sendMessage(
-                { action: "showSavedPosts" },
+                { action: "instagram:showSavedPosts" },
                 (response) => {
                     if (!response || response.status === "error") {
                         alert(
@@ -267,7 +269,7 @@ export const InstagramUI = {
             btn.textContent = "Processing...";
 
             const response = await chrome.runtime.sendMessage({
-                action: "addCredential",
+                action: "instagram:addCredential",
                 payload: {
                     username,
                     password,
@@ -313,7 +315,7 @@ export const InstagramUI = {
                 const isEnabled = e.target.checked;
 
                 const response = await chrome.runtime.sendMessage({
-                    action: "updateCredentialSettings",
+                    action: "instagram:updateCredentialSettings",
                     username: username,
                     payload: { fetch_feed: isEnabled },
                 });
@@ -339,7 +341,7 @@ export const InstagramUI = {
                 e.target.textContent = "...";
 
                 const response = await chrome.runtime.sendMessage({
-                    action: "deleteCredential",
+                    action: "instagram:deleteCredential",
                     username: username,
                 });
                 if (response.status === "success") {
@@ -368,7 +370,7 @@ export const InstagramUI = {
                 btn.textContent = "⏳";
 
                 const response = await chrome.runtime.sendMessage({
-                    action: "switchIdentity",
+                    action: "instagram:switchIdentity",
                     username: username,
                     platform: "instagram",
                 });

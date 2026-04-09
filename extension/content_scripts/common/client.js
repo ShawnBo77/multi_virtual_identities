@@ -1,7 +1,7 @@
 async function getClientId() {
     try {
         const response = await chrome.runtime.sendMessage({
-            action: "getClientID",
+            action: "instagram:getClientID",
         });
         if (response) {
             return response.clientID;

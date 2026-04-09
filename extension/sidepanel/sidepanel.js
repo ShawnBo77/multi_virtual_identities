@@ -2,10 +2,14 @@ import { InstagramUI } from "./instagram/instagram_ui.js";
 
 // Define the supported platform
 const PLATFORM_DRIVERS = {
-    "instagram.com": InstagramUI,
+    "instagram.com": {
+        ui: InstagramUI,
+        key: "instagram",
+    },
 };
 
-let currentPlatform = null;
+let currentPlatformUI = null;
+let currentPlatformKey = null;
 
 const authSection = document.getElementById("auth-section");
 const mainContent = document.getElementById("main-content");
@@ -165,12 +169,25 @@ async function mountPlatformUI() {
     );
 
     if (domain) {
-        currentPlatform = PLATFORM_DRIVERS[domain];
-        const response = await chrome.runtime.sendMessage({
-            action: "getState",
-        });
-        await currentPlatform.init(mountPoint, response.data);
+        const { ui, key } = PLATFORM_DRIVERS[domain];
+        currentPlatformUI = ui;
+        currentPlatformKey = key;
+        try {
+            const response = await chrome.runtime.sendMessage({
+                action: `${currentPlatformKey}:getState`,
+            });
+            if (response && response.status === "success") {
+                // Initialize the UI with retrieved data
+                await currentPlatformUI.init(mountPoint, response.data);
+            } else {
+                mountPoint.innerHTML = `<p class="error">${response?.message || `Failed to load state for ${currentPlatformKey}.`}</p>`;
+            }
+        } catch (error) {
+            console.error("[Sidepanel] Error fetching state:", error);
+        }
     } else {
+        currentPlatformUI = null;
+        currentPlatformKey = null;
         mountPoint.innerHTML = `<p style="text-align:center; padding:20px; color:#666;">
             Please open a supported platform (e.g. Instagram).
         </p>`;
@@ -183,11 +200,17 @@ async function mountPlatformUI() {
 
 // Listen for updates from the background script
 chrome.runtime.onMessage.addListener(async (request) => {
-    if (request.action === "stateUpdated" && currentPlatform) {
+    if (
+        request.action === "stateUpdated" &&
+        currentPlatformUI &&
+        currentPlatformKey
+    ) {
         const response = await chrome.runtime.sendMessage({
-            action: "getState",
+            action: `${currentPlatformKey}:getState`,
         });
-        await currentPlatform.render(response.data);
+        if (response && response.data) {
+            await currentPlatformUI.render(response.data);
+        }
     }
 });
 

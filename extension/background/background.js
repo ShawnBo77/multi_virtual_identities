@@ -1,28 +1,57 @@
+import { InstagramHandler } from "./instagram/instagram.js";
+
 const API_BASE_URL = "http://127.0.0.1:8000";
-
-// Centralized state
-let followingCache = {};
-let pendingChanges = {};
-let credentialsCache = [];
 let CLIENT_ID = null;
-let isSyncing = false;
 
-const PLATFORM_CONFIG = {
-    instagram: {
-        ruleId: 1001,
-        filter: "*://*.instagram.com/*",
-    },
+/**
+ * Register all supported platforms here.
+ */
+const PLATFORMS = {
+    instagram: InstagramHandler,
 };
 
+/**
+ * Shared Context passed to handlers.
+ */
+const getContext = () => ({
+    clientID: CLIENT_ID,
+    apiBase: API_BASE_URL,
+    broadcastFn: broadcastStateUpdate,
+});
+
 // ==========================================
-// Client ID Management
+// Global Utility Functions
 // ==========================================
 
 /**
- * Handle login or registration requests from the sidepanel
- * @param {string} mode - "login" or "register"
- * @param {object} payload - {username, password}
+ * Notify all UI components that the state has changed.
  */
+async function broadcastStateUpdate() {
+    console.log("[Background] Broadcasting state update to UI scripts.");
+    try {
+        await chrome.runtime.sendMessage({ action: "stateUpdated" });
+    } catch (error) {
+        // This might error if the side panel isn't open, which is fine.
+    }
+}
+
+// ==========================================
+// Initialization & Lifecycle
+// ==========================================
+async function initializeAllPlatforms() {
+    const data = await chrome.storage.local.get("clientID");
+    CLIENT_ID = data.clientID || null;
+
+    if (CLIENT_ID) {
+        for (const p in PLATFORMS) {
+            await PLATFORMS[p].init(getContext());
+        }
+    }
+}
+
+// ==========================================
+// Auth & Startup
+// ==========================================
 async function handleUserAuth(mode, payload) {
     const endpoint = mode === "login" ? "/login" : "/register";
     try {
@@ -31,614 +60,107 @@ async function handleUserAuth(mode, payload) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
         });
-
         const data = await response.json();
         if (response.ok) {
-            // Save clientID and username to storage
             CLIENT_ID = data.id;
             await chrome.storage.local.set({
                 clientID: data.id,
                 username: data.username,
             });
-
-            // load Cache for the client
-            await loadState();
-
-            // Re-initialize alarms after successful login
-            initializeAlarms();
-            fetchFollowingsFromServer();
-            fetchCredentialsFromServer();
+            await initializeAllPlatforms();
             return { status: "success", data: data };
-        } else {
-            return {
-                status: "error",
-                message: data.detail || "Authentication failed",
-            };
         }
-    } catch (error) {
-        console.error(`[Background] Auth error (${mode}):`, error);
+        return { status: "error", message: data.detail || "Auth failed" };
+    } catch (e) {
+        console.error(`[Background] Auth error (${mode}):`, e);
         return { status: "error", message: "Server connection failed" };
     }
 }
 
 // ==========================================
-// State & Sync Logic
+// Global Dispatcher
 // ==========================================
 
-async function loadState() {
-    const { clientID } = await chrome.storage.local.get("clientID");
-    CLIENT_ID = clientID || null;
-
-    if (!CLIENT_ID) {
-        followingCache = {};
-        pendingChanges = {};
-        return;
-    }
-
-    const cacheKey = `serverCache_${CLIENT_ID}`;
-    const pendingKey = `pendingChanges_${CLIENT_ID}`;
-
-    const data = await chrome.storage.local.get([cacheKey, pendingKey]);
-    followingCache = data[cacheKey] || {};
-    pendingChanges = data[pendingKey] || {};
-    console.log(`[Background] State loaded for client: ${CLIENT_ID}`);
-}
-
-async function saveState() {
-    if (!CLIENT_ID) return;
-
-    const cacheKey = `serverCache_${CLIENT_ID}`;
-    const pendingKey = `pendingChanges_${CLIENT_ID}`;
-
-    await chrome.storage.local.set({
-        [cacheKey]: followingCache,
-        [pendingKey]: pendingChanges,
-    });
-}
-
-// Function to notify UI scripts of state changes
-async function broadcastStateUpdate() {
-    console.log("[Background] Broadcasting state update to UI scripts.");
-    // Notify side panel
-    try {
-        await chrome.runtime.sendMessage({ action: "stateUpdated" });
-    } catch (error) {
-        // This might error if the side panel isn't open, which is fine.
-    }
-}
-
-function getEffectiveFollowList() {
-    const effectiveSet = new Set();
-    Object.keys(followingCache).forEach((username) => {
-        if (followingCache[username] && followingCache[username].isFollowing) {
-            effectiveSet.add(username);
-        }
-    });
-    Object.keys(pendingChanges).forEach((username) => {
-        const change = pendingChanges[username];
-        if (change.type === "FOLLOW") {
-            effectiveSet.add(username);
-        } else if (change.type === "UNFOLLOW") {
-            effectiveSet.delete(username);
-        }
-    });
-    return Array.from(effectiveSet);
-}
-
-async function recordAction(type, username) {
-    if (!CLIENT_ID) {
-        console.error(
-            "[Background] Client ID not found. Cannot record action.",
-        );
-        return;
-    }
-    console.log(`[Background] Recording action: ${type} ${username}`);
-    pendingChanges[username] = {
-        type: type,
-        timestamp: Date.now(),
-    };
-    await saveState();
-    await broadcastStateUpdate();
-    processSync(); // Trigger sync immediately
-}
-
-// Push local pending actions to the Server.
-async function processSync() {
-    if (isSyncing || !CLIENT_ID) return;
-
-    const usersToSync = Object.keys(pendingChanges);
-    if (usersToSync.length === 0) return;
-
-    isSyncing = true;
-    let hasChanged = false;
-
-    try {
-        for (const username of usersToSync) {
-            const action = pendingChanges[username];
-            const serverData = followingCache[username];
-            const serverTimestamp = serverData ? serverData.timestamp : 0;
-
-            // If Server data is newer, discard local action
-            if (serverTimestamp > action.timestamp) {
-                console.log(
-                    `[Background] Action outdated for ${username}. Dropping.`,
-                );
-                delete pendingChanges[username];
-                hasChanged = true;
-                continue;
-            }
-
-            try {
-                let success = false;
-                let response;
-
-                if (action.type === "FOLLOW") {
-                    response = await fetch(
-                        `${API_BASE_URL}/instagram/followings`,
-                        {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                                "Client-ID": CLIENT_ID,
-                            },
-                            body: JSON.stringify({
-                                followed_username: username,
-                            }),
-                        },
-                    );
-                    if (response.ok || response.status === 409) success = true;
-                } else {
-                    // UNFOLLOW
-                    response = await fetch(
-                        `${API_BASE_URL}/instagram/followings/${username}`,
-                        {
-                            method: "DELETE",
-                            headers: {
-                                "Content-Type": "application/json",
-                                "Client-ID": CLIENT_ID,
-                            },
-                        },
-                    );
-                    if (response.ok || response.status === 404) success = true;
-                }
-
-                if (success) {
-                    console.log(
-                        `[Background] Sync successful: ${action.type} ${username}`,
-                    );
-                    followingCache[username] = {
-                        timestamp: action.timestamp,
-                        isFollowing: action.type === "FOLLOW",
-                    };
-                    delete pendingChanges[username];
-                    hasChanged = true;
-                } else {
-                    console.warn(
-                        `[Background] Server error (${response.status}) for ${username}.`,
-                    );
-                }
-            } catch (error) {
-                console.error(
-                    `[Background] Network failure during sync for ${username}:`,
-                    error,
-                );
-                break;
-            }
-        }
-    } finally {
-        isSyncing = false;
-        if (hasChanged) {
-            await saveState();
-            await broadcastStateUpdate();
-        }
-    }
-}
-
-async function fetchFollowingsFromServer(shouldBroadcast = true) {
-    if (!CLIENT_ID) return;
-    console.log("[Background] Fetching followings from server...");
-
-    try {
-        const response = await fetch(`${API_BASE_URL}/instagram/followings`, {
-            headers: { "Client-ID": CLIENT_ID },
-        });
-        if (!response.ok) return;
-
-        const serverData = await response.json();
-        const newServerCache = {};
-        serverData.forEach((item) => {
-            newServerCache[item.followed_username] = {
-                timestamp: new Date(item.updated_at).getTime(),
-                isFollowing: item.is_following,
-            };
-        });
-
-        // Reconcile with pending changes
-        Object.keys(pendingChanges).forEach((username) => {
-            const localAction = pendingChanges[username];
-            const serverEntry = newServerCache[username];
-            const serverTime = serverEntry ? serverEntry.timestamp : 0;
-
-            // Server data is newer -> Discard local pending action
-            if (serverTime > localAction.timestamp) {
-                console.log(
-                    `[Background] Conflict resolved: Server is newer for ${username}. Removing local change.`,
-                );
-                delete pendingChanges[username];
-            }
-        });
-
-        followingCache = newServerCache;
-        await saveState();
-        if (shouldBroadcast) {
-            await broadcastStateUpdate();
-        }
-        processSync(); // Trigger sync for any remaining items
-    } catch (error) {
-        console.error("[Background] Failed to fetch server list:", error);
-    }
-}
-
-async function fetchCredentialsFromServer(shouldBroadcast = true) {
-    if (!CLIENT_ID) return;
-    try {
-        const res = await fetch(`${API_BASE_URL}/instagram/credentials`, {
-            headers: { "Client-ID": CLIENT_ID },
-        });
-        if (res.ok) {
-            credentialsCache = await res.json();
-            console.log("[Background] Credentials cache updated.");
-            if (shouldBroadcast) {
-                broadcastStateUpdate();
-            }
-        }
-    } catch (err) {
-        console.error("[Background] Failed to fetch credentials:", err);
-    }
-}
-
-// ==========================================
-// Update User-Agent
-// ==========================================
-
-async function updatePlatformUA(platform, userAgent) {
-    const config = PLATFORM_CONFIG[platform];
-    if (!config || !userAgent) return;
-
-    await chrome.declarativeNetRequest.updateDynamicRules({
-        removeRuleIds: [config.ruleId],
-        addRules: [
-            {
-                id: config.ruleId,
-                priority: 1,
-                action: {
-                    type: "modifyHeaders",
-                    requestHeaders: [
-                        {
-                            header: "user-agent",
-                            operation: "set",
-                            value: userAgent,
-                        },
-                    ],
-                },
-                condition: {
-                    urlFilter: config.filter,
-                    resourceTypes: [
-                        "main_frame",
-                        "sub_frame",
-                        "xmlhttprequest",
-                        "script",
-                    ],
-                },
-            },
-        ],
-    });
-    console.log(`[Background] User-Agent rule updated for ${platform}.`);
-}
-
-// ==========================================
-// Event Listeners & Initialization
-// ==========================================
-
+/**
+ * Global Message Dispatcher.
+ * Routes actions like "instagram:recordAction" to the correct handler.
+ */
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === "login" || request.action === "register") {
-        handleUserAuth(request.action, request.payload).then(sendResponse);
-        return true; // Keep channel open for async fetch
-    }
+    const [platform, action] = request.action.includes(":")
+        ? request.action.split(":")
+        : [null, request.action];
 
-    if (request.action === "logout") {
-        const cacheKey = `serverCache_${CLIENT_ID}`;
-        const pendingKey = `pendingChanges_${CLIENT_ID}`;
-
-        chrome.storage.local.remove(
-            ["clientID", "username", cacheKey, pendingKey],
-            () => {
-                CLIENT_ID = null;
-                followingCache = {};
-                pendingChanges = {};
-                credentialsCache = [];
-                chrome.alarms.clearAll();
-                sendResponse({ status: "success" });
-            },
-        );
+    // Handle Global Actions
+    if (action === "login" || action === "register") {
+        handleUserAuth(action, request.payload).then(sendResponse);
         return true;
     }
 
-    if (request.action === "recordAction") {
-        recordAction(request.type, request.username);
-        sendResponse({ status: "ok" });
+    if (action === "logout") {
+        chrome.storage.local.clear(() => {
+            CLIENT_ID = null;
+            chrome.alarms.clearAll();
+            sendResponse({ status: "success" });
+            // Re-initialize to clear memory state
+            initializeAllPlatforms();
+        });
         return true;
     }
 
-    if (request.action === "getEffectiveFollowList") {
-        const list = getEffectiveFollowList();
-        sendResponse({ status: "success", data: list });
-        return true;
-    }
-
-    // Use an async function inside the listener to wait for storage
     (async () => {
-        // Recovery: Re-fetch ID from storage if it was lost in memory
-        if (!CLIENT_ID) {
-            const data = await chrome.storage.local.get("clientID");
-            CLIENT_ID = data.clientID || null;
-        }
+        try {
+            if (!CLIENT_ID) {
+                const storage = await chrome.storage.local.get("clientID");
+                CLIENT_ID = storage.clientID || null;
+            }
 
-        if (!CLIENT_ID) {
-            sendResponse({
-                status: "error",
-                message: "Client ID not found. Please login.",
-            });
-            return;
-        }
+            if (!CLIENT_ID) {
+                sendResponse({
+                    status: "error",
+                    message: "Client ID not found. Please login.",
+                });
+                return;
+            }
 
-        // Forwarding message from sidepanel to content script
-        if (request.action === "showSavedPosts") {
-            chrome.tabs.query(
-                {
-                    active: true,
-                    currentWindow: true,
-                    url: "*://*.instagram.com/*",
-                },
-                (tabs) => {
-                    if (tabs.length > 0) {
-                        chrome.tabs.sendMessage(
-                            tabs[0].id,
-                            { action: "renderSavedPosts" },
-                            (response) => {
-                                if (chrome.runtime.lastError) {
-                                    sendResponse({
-                                        status: "error",
-                                        message:
-                                            chrome.runtime.lastError.message,
-                                    });
-                                } else {
-                                    sendResponse(response);
-                                }
-                            },
-                        );
-                    } else {
-                        sendResponse({
-                            status: "error",
-                            message: "No active Instagram tab found.",
-                        });
-                    }
-                },
+            // Delegation: Forward to the specific platform handler
+            const handler = PLATFORMS[platform];
+            if (handler) {
+                const response = await handler.handleAction(
+                    action,
+                    request,
+                    getContext(),
+                );
+                sendResponse(response);
+            } else {
+                sendResponse({
+                    status: "error",
+                    message: `Handler for platform "${platform}" not found.`,
+                });
+            }
+        } catch (err) {
+            console.error(
+                `[Background] Action error (${request.action}):`,
+                err,
             );
-            return true;
-        }
-        // When the content script initializes, it might need the client ID
-        else if (request.action === "getClientID") {
-            sendResponse({ clientID: CLIENT_ID });
-            return true;
-        }
-        // getState
-        else if (request.action === "getState") {
-            const effectiveList = getEffectiveFollowList();
-            sendResponse({
-                status: "success",
-                data: {
-                    followings: followingCache,
-                    pendingChanges: pendingChanges,
-                    effectiveFollowList: effectiveList,
-                    credentials: credentialsCache,
-                    clientID: CLIENT_ID,
-                },
-            });
-            return true;
-        }
-        // triggerFollowListSync
-        else if (request.action === "triggerFollowListSync") {
-            fetchFollowingsFromServer();
-            sendResponse({ status: "sync_started" });
-            return true;
-        }
-        // getCredentials
-        else if (request.action === "getCredentials") {
-            if (!CLIENT_ID) {
-                sendResponse({
-                    status: "error",
-                    message: "Client ID not found.",
-                });
-                return true;
-            }
-            fetchCredentialsFromServer();
-            sendResponse({ status: "sync_started" });
-            return true;
-        }
-        // addCredential
-        else if (request.action === "addCredential") {
-            if (!CLIENT_ID) {
-                sendResponse({
-                    status: "error",
-                    message: "Client ID not found.",
-                });
-                return true;
-            }
-            fetch(`${API_BASE_URL}/instagram/credentials`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Client-ID": CLIENT_ID,
-                },
-                body: JSON.stringify(request.payload),
-            })
-                .then(async (res) => {
-                    if (res.ok) {
-                        sendResponse({ status: "success" });
-                        fetchCredentialsFromServer();
-                    } else {
-                        const err = await res.json();
-                        sendResponse({
-                            status: "error",
-                            message: err.detail || "Unknown error",
-                        });
-                    }
-                })
-                .catch((err) =>
-                    sendResponse({ status: "error", message: err.message }),
-                );
-            return true;
-        }
-        // updateCredentialSettings
-        else if (request.action === "updateCredentialSettings") {
-            fetch(
-                `${API_BASE_URL}/instagram/credentials/${request.username}/settings`,
-                {
-                    method: "PATCH",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Client-ID": CLIENT_ID,
-                    },
-                    body: JSON.stringify({
-                        fetch_feed: request.payload.fetch_feed,
-                    }),
-                },
-            )
-                .then(async (res) => {
-                    if (res.ok) {
-                        await fetchCredentialsFromServer();
-                        sendResponse({ status: "success" });
-                    } else {
-                        const errData = await res.json();
-                        sendResponse({
-                            status: "error",
-                            message:
-                                errData.detail || "Failed to update settings",
-                        });
-                    }
-                })
-                .catch((err) =>
-                    sendResponse({ status: "error", message: err.message }),
-                );
-            return true;
-        }
-        // deleteCredential
-        else if (request.action === "deleteCredential") {
-            if (!CLIENT_ID) {
-                sendResponse({
-                    status: "error",
-                    message: "Client ID not found.",
-                });
-                return true;
-            }
-            fetch(`${API_BASE_URL}/instagram/credentials/${request.username}`, {
-                method: "DELETE",
-                headers: { "Client-ID": CLIENT_ID },
-            })
-                .then(async (res) => {
-                    if (res.ok) {
-                        // Handles 204 No Content
-                        await fetchCredentialsFromServer();
-                        sendResponse({ status: "success" });
-                    } else {
-                        sendResponse({
-                            status: "error",
-                            message: "Failed to delete on server.",
-                        });
-                    }
-                })
-                .catch((err) =>
-                    sendResponse({ status: "error", message: err.message }),
-                );
-            return true;
-        }
-        // switchIdentity
-        else if (request.action === "switchIdentity") {
-            const { platform, username } = request;
-
-            try {
-                const response = await fetch(
-                    `${API_BASE_URL}/instagram/credentials/${username}`,
-                    {
-                        headers: { "Client-ID": CLIENT_ID },
-                    },
-                );
-
-                if (!response.ok)
-                    throw new Error("Failed to fetch cookies from server");
-
-                const data = await response.json();
-                if (!data.cookies || data.cookies.length === 0) {
-                    throw new Error("No valid cookies found for this identity");
-                }
-
-                console.log(`[Background] Switching to identity: ${username}`);
-
-                const storageKey = `active_user_${platform}`;
-                await chrome.storage.local.set({
-                    [storageKey]: username,
-                });
-
-                // Update User-Agent
-                if (data.user_agent) {
-                    await updatePlatformUA(platform, data.user_agent);
-                }
-
-                // Clear existing Instagram cookies to avoid session conflicts
-                const currentCookies = await chrome.cookies.getAll({
-                    domain: ".instagram.com",
-                });
-                for (let cookie of currentCookies) {
-                    await chrome.cookies.remove({
-                        url: `https://www.instagram.com${cookie.path}`,
-                        name: cookie.name,
-                    });
-                }
-
-                // Inject new cookies
-                for (let c of data.cookies) {
-                    // Map Selenium cookie format to Chrome Extension format
-                    await chrome.cookies.set({
-                        url: "https://www.instagram.com",
-                        name: c.name,
-                        value: c.value,
-                        domain: c.domain || ".instagram.com",
-                        path: c.path || "/",
-                        secure: c.secure || true,
-                        httpOnly: c.httpOnly || false,
-                        expirationDate:
-                            c.expiry || Date.now() / 1000 + 3600 * 24 * 30, // Default 30 days
-                    });
-                }
-
-                // Reload active Instagram tabs to apply the new identity
-                chrome.tabs.query({ url: "*://*.instagram.com/*" }, (tabs) => {
-                    tabs.forEach((tab) => chrome.tabs.reload(tab.id));
-                });
-
-                sendResponse({
-                    status: "success",
-                    message: `Switched to ${username}`,
-                });
-            } catch (err) {
-                console.error("[Background] Identity switch error:", err);
-                sendResponse({ status: "error", message: err.message });
-            }
-            return true;
+            sendResponse({ status: "error", message: err.message });
         }
     })();
+
     return true;
+});
+
+/**
+ * Global Alarm Dispatcher.
+ * Forwards alarms to the correct platform based on the alarm name prefix.
+ */
+chrome.alarms.onAlarm.addListener((alarm) => {
+    // Expect alarm names like "instagram:periodic-sync"
+    const [platform] = alarm.name.split(":");
+    const handler = PLATFORMS[platform];
+
+    if (handler && handler.onAlarm) {
+        handler.onAlarm(alarm, getContext());
+    }
 });
 
 // Open Side Panel on Action Click
@@ -646,44 +168,9 @@ chrome.action.onClicked.addListener((tab) => {
     chrome.sidePanel.open({ windowId: tab.windowId });
 });
 
-// Use alarms for periodic tasks
-chrome.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === "process-sync") {
-        processSync();
-    }
-    if (alarm.name === "fetch-data") {
-        fetchFollowingsFromServer();
-        fetchCredentialsFromServer();
-    }
-});
-
-function initializeAlarms() {
-    if (!CLIENT_ID) return;
-    chrome.alarms.create("process-sync", {
-        delayInMinutes: 0.1,
-        periodInMinutes: 1,
-    });
-    chrome.alarms.create("fetch-data", {
-        delayInMinutes: 0.2,
-        periodInMinutes: 1,
-    });
-}
-
-async function initializeExtension() {
-    await loadState();
-
-    if (CLIENT_ID) {
-        initializeAlarms();
-    } else {
-        console.warn("[Background] No ClientID, alarms will not be created.");
-    }
-}
-
 // Service Worker startup logic
-chrome.runtime.onStartup.addListener(initializeExtension);
-
+chrome.runtime.onStartup.addListener(initializeAllPlatforms);
 // Initialize on first install
-chrome.runtime.onInstalled.addListener(initializeExtension);
-
+chrome.runtime.onInstalled.addListener(initializeAllPlatforms);
 // Initial load when the script starts
-initializeExtension();
+initializeAllPlatforms();
