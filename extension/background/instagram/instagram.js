@@ -116,7 +116,12 @@ export const InstagramHandler = {
                 );
 
             case "switchIdentity":
-                await this.switchIdentity(request.username, clientID, apiBase);
+                await this.switchIdentity(
+                    request.username,
+                    clientID,
+                    apiBase,
+                    broadcastFn,
+                );
                 return { status: "success" };
 
             case "triggerFollowListSync":
@@ -363,7 +368,7 @@ export const InstagramHandler = {
     /**
      * Saves a new identity (username/password) to the server.
      */
-    async addCredential(payload, clientID, apiBase, broadcast) {
+    async addCredential(payload, clientID, apiBase, broadcastFn) {
         try {
             const res = await fetch(`${apiBase}/instagram/credentials`, {
                 method: "POST",
@@ -375,7 +380,7 @@ export const InstagramHandler = {
             });
 
             if (res.ok) {
-                await this.fetchCredentials(clientID, apiBase, broadcast);
+                await this.fetchCredentials(clientID, apiBase, broadcastFn);
                 return { status: "success" };
             } else {
                 const err = await res.json();
@@ -430,7 +435,7 @@ export const InstagramHandler = {
     /**
      * Unlinks/Deletes an identity from the server.
      */
-    async deleteCredential(username, clientID, apiBase, broadcast) {
+    async deleteCredential(username, clientID, apiBase, broadcastFn) {
         try {
             const res = await fetch(
                 `${apiBase}/instagram/credentials/${username}`,
@@ -441,7 +446,7 @@ export const InstagramHandler = {
             );
 
             if (res.ok) {
-                await this.fetchCredentials(clientID, apiBase, broadcast);
+                await this.fetchCredentials(clientID, apiBase, broadcastFn);
                 return { status: "success" };
             } else {
                 return {
@@ -493,7 +498,7 @@ export const InstagramHandler = {
     /**
      * Execute identity switch by replacing cookies and UA.
      */
-    async switchIdentity(username, clientID, apiBase) {
+    async switchIdentity(username, clientID, apiBase, broadcastFn) {
         const response = await fetch(
             `${apiBase}/instagram/credentials/${username}`,
             {
@@ -538,9 +543,16 @@ export const InstagramHandler = {
             });
         }
 
+        await chrome.storage.local.set({ active_user_instagram: username });
+        console.log(
+            `[Background-Ins] Active user updated in storage: ${username}`,
+        );
+
         chrome.tabs.query({ url: "*://*.instagram.com/*" }, (tabs) => {
             tabs.forEach((tab) => chrome.tabs.reload(tab.id));
         });
+
+        // await broadcastFn();
     },
 
     /**
