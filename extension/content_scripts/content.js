@@ -1,4 +1,4 @@
-const PLATFORM_HANDLERS = {
+const PLATFORM_ADAPTERS = {
     "instagram.com": {
         init: async () => {
             console.log("[Social Shield] Initializing Instagram handler...");
@@ -33,11 +33,11 @@ const PLATFORM_HANDLERS = {
 
 
 // Identify the current platform based on hostname
-const currentPlatform = Object.keys(PLATFORM_HANDLERS).find(domain => 
+const currentPlatform = Object.keys(PLATFORM_ADAPTERS).find(domain => 
     window.location.hostname.includes(domain)
 );
 
-const handler = PLATFORM_HANDLERS[currentPlatform];
+const handler = PLATFORM_ADAPTERS[currentPlatform];
 
 if (handler) {
     // Run the platform's initialization

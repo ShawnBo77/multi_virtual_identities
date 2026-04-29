@@ -6,7 +6,7 @@ let CLIENT_ID = null;
 /**
  * Register all supported platforms here.
  */
-const PLATFORMS = {
+const PLATFORM_HANDLERS = {
     instagram: InstagramHandler,
 };
 
@@ -43,8 +43,8 @@ async function initializeAllPlatforms() {
     CLIENT_ID = data.clientID || null;
 
     if (CLIENT_ID) {
-        for (const p in PLATFORMS) {
-            await PLATFORMS[p].init(getContext());
+        for (const p in PLATFORM_HANDLERS) {
+            await PLATFORM_HANDLERS[p].init(getContext());
         }
     }
 }
@@ -123,7 +123,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             }
 
             // Delegation: Forward to the specific platform handler
-            const handler = PLATFORMS[platform];
+            const handler = PLATFORM_HANDLERS[platform];
             if (handler) {
                 const response = await handler.handleAction(
                     action,
@@ -156,7 +156,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 chrome.alarms.onAlarm.addListener((alarm) => {
     // Expect alarm names like "instagram:periodic-sync"
     const [platform] = alarm.name.split(":");
-    const handler = PLATFORMS[platform];
+    const handler = PLATFORM_HANDLERS[platform];
 
     if (handler && handler.onAlarm) {
         handler.onAlarm(alarm, getContext());

@@ -1,7 +1,7 @@
 import { InstagramUI } from "./instagram/instagram_ui.js";
 
 // Define the supported platform
-const PLATFORM_DRIVERS = {
+const PLATFORM_UIS = {
     "instagram.com": {
         ui: InstagramUI,
         key: "instagram",
@@ -164,12 +164,12 @@ async function mountPlatformUI() {
     const mountPoint = document.getElementById("platform-mount");
 
     // Find the matching platform driver based on the current URL
-    const domain = Object.keys(PLATFORM_DRIVERS).find((d) =>
+    const domain = Object.keys(PLATFORM_UIS).find((d) =>
         tab?.url?.includes(d),
     );
 
     if (domain) {
-        const { ui, key } = PLATFORM_DRIVERS[domain];
+        const { ui, key } = PLATFORM_UIS[domain];
         currentPlatformUI = ui;
         currentPlatformKey = key;
         try {
