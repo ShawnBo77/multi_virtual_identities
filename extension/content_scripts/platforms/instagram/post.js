@@ -1,7 +1,23 @@
 // ==========================================
 // Feed Post
 // ==========================================
-async function fetchFeed(limit = 2) {
+let injectionInterval;
+
+function startInstagramInjection() {
+    console.log("[IG Injector] Starting post injection timer...");
+
+    // Attempt to inject posts every 2 seconds
+    injectionInterval = setInterval(injectPost, 2000);
+
+    // Stop attempting after 30 seconds to save resources
+    setTimeout(() => {
+        if (injectionInterval) {
+            clearInterval(injectionInterval);
+        }
+    }, 30000);
+}
+
+async function fetchFeed(limit = 1) {
     if (!CLIENT_ID) return [];
     const url = `${API_BASE_URL}/instagram/feed?limit=${limit}`;
     try {
@@ -16,7 +32,7 @@ async function fetchFeed(limit = 2) {
     }
 }
 
-async function fetchHomeFeed(limit = 2) {
+async function fetchHomeFeed(limit = 1) {
     if (!CLIENT_ID) return [];
 
     const url = `${API_BASE_URL}/instagram/home-feed?limit=${limit}`;
@@ -341,8 +357,8 @@ function createCustomPostElement(data) {
 
 async function injectPost() {
     // Set the number of new posts to fetch in one batch
-    const FEED_LIMIT = 2;
-    const HOME_FEED_LIMIT = 2;
+    const FEED_LIMIT = 1;
+    const HOME_FEED_LIMIT = 1;
 
     // Only inject on the Instagram home page ('/')
     if (window.location.pathname !== "/") {

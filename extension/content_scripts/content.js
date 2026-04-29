@@ -1,61 +1,50 @@
-// ==========================================
-// Listener
-// ==========================================
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    // console.log(`[content.js] Message received at ${new Date().toLocaleTimeString()}:`, request);
+const PLATFORM_HANDLERS = {
+    "instagram.com": {
+        init: async () => {
+            console.log("[Social Shield] Initializing Instagram handler...");
 
-    if (request.action === "renderSavedPosts") {
-        renderSavedPosts()
-            .then(() => {
-                // console.log("[content.js] 'showSavedPosts' function finished. Sending response.");
-                sendResponse({ status: "modal shown" });
-            })
-            .catch((error) => {
-                // console.error("[content.js] Error inside showSavedPosts:", error);
-                sendResponse({ status: "error", message: error.message });
-            });
+            // Set global Client ID (from client.js)
+            window.CLIENT_ID = await getClientId();
 
-        return true;
-    }
-});
+            // Instagram-specific features
+            // Anonymous follow logic (from follow.js)
+            document.addEventListener("contextmenu", handleRightClick, true);
 
-// Listen for storage changes
-chrome.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === "local" && CLIENT_ID) {
-        const cacheKey = `serverCache_${CLIENT_ID}`;
-        const pendingKey = `pendingChanges_${CLIENT_ID}`;
+            // Start post injection logic if on the main feed (from post.js)
+            if (window.location.pathname === "/") {
+                startInstagramInjection();
+            }
+        },
+        onMessage: (request, sendResponse) => {
+            if (request.action === "renderSavedPosts") {
+                renderSavedPosts() // Defined in post.js
+                    .then(() => sendResponse({ status: "modal shown" }))
+                    .catch((error) =>
+                        sendResponse({
+                            status: "error",
+                            message: error.message,
+                        }),
+                    );
+                return true;
+            }
+        },
+    },
+};
 
-        if (changes[cacheKey]) {
-            serverCache = changes[cacheKey].newValue || {};
-            // console.log("[content.js] serverCache updated for client", CLIENT_ID);
-        }
-        if (changes[pendingKey]) {
-            pendingChanges = changes[pendingKey].newValue || {};
-        }
 
-        if (changes.clientID) {
-            location.reload();
-        }
-    }
-});
+// Identify the current platform based on hostname
+const currentPlatform = Object.keys(PLATFORM_HANDLERS).find(domain => 
+    window.location.hostname.includes(domain)
+);
 
-// Global right-click event listener
-// anonymous follow button
-document.addEventListener("contextmenu", handleRightClick, true);
+const handler = PLATFORM_HANDLERS[currentPlatform];
 
-// ==========================================
-// Initialization
-// ==========================================
+if (handler) {
+    // Run the platform's initialization
+    handler.init();
 
-let injectionInterval;
-
-async function initializeApp() {
-    console.log("content script Initializing...");
-    CLIENT_ID = await getClientId();
-
-    // Post injection (based on effective list)
-    injectionInterval = setInterval(injectPost, 2000);
-    setTimeout(() => clearInterval(injectionInterval), 30000);
+    // Route messages to the correct platform handler
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+        return handler.onMessage(request, sendResponse);
+    });
 }
-
-initializeApp();
