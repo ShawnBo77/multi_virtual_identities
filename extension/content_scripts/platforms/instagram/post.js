@@ -357,8 +357,8 @@ function createCustomPostElement(data) {
 
 async function injectPost() {
     // Set the number of new posts to fetch in one batch
-    const FEED_LIMIT = 1;
-    const HOME_FEED_LIMIT = 1;
+    const FEED_LIMIT = 2;
+    const HOME_FEED_LIMIT = 2;
 
     // Only inject on the Instagram home page ('/')
     if (window.location.pathname !== "/") {
@@ -417,6 +417,12 @@ async function injectPost() {
             }
         });
 
+        setTimeout(() => {
+            recalculateStaticOffsets();
+            lastScrollY = -1;
+            syncPostsToScroll();
+        }, 500);
+
         console.log(
             `%c[IG Injector] Injected ${allPosts.length} posts (${targetFeed.length} Target, ${homeFeed.length} Home)!`,
             "color: green; font-weight: bold;",
@@ -425,6 +431,126 @@ async function injectPost() {
         console.error("[IG Injector] Error during injection:", error);
     }
 }
+
+let customPostsData = []; // Stores static post info: { id, dom, originalHeight, staticOffset, lastAppliedHeight }
+let feedStartAbsoluteY = 0; // Absolute Y-coordinate of the feed start
+let lastScrollY = -1; // Records the previous scroll position
+let isInternalUpdating = false;
+
+/**
+ * Calculates the "virtual static offset" for each post after injection.
+ */
+function recalculateStaticOffsets() {
+    const posts = document.querySelectorAll(".custom-post-wrapper");
+
+    if (posts.length === 0) return;
+
+    console.log("[IG Debug] Recalculating Static Offsets...");
+    // console.log(posts);
+
+    // Use the first recorded original height to calculate the starting point.
+    // This avoids calculation interference caused by current scaling/shrinkage.
+    const firstPost = posts[0];
+    const firstRect = firstPost.getBoundingClientRect();
+    const originalH = parseFloat(
+        firstPost.dataset.originalHeight || firstPost.offsetHeight,
+    );
+    const currentShrinkage = originalH - firstPost.offsetHeight;
+
+    // Lock the starting point
+    feedStartAbsoluteY = window.scrollY + firstRect.top + currentShrinkage;
+    console.log("feedStartAbsoluteY:", feedStartAbsoluteY);
+
+    let currentOffset = 0;
+    customPostsData = Array.from(posts).map((post) => {
+        if (!post.dataset.originalHeight) {
+            post.dataset.originalHeight = post.offsetHeight;
+        }
+
+        const h = parseFloat(post.dataset.originalHeight);
+        const data = {
+            id: post.id,
+            dom: post,
+            originalHeight: h,
+            staticOffset: currentOffset,
+            lastAppliedHeight: post.offsetHeight, // Initialize with current height
+        };
+
+        currentOffset += h + 20;
+        return data;
+    });
+}
+
+/**
+ * Calculates size based on absolute scroll position to break recursion loops.
+ */
+function syncPostsToScroll() {
+    if (customPostsData.length === 0) return;
+
+    const currentScrollY = Math.floor(window.scrollY);
+    if (Math.abs(currentScrollY - lastScrollY) < 50) return;
+    // console.log("------------------syncPostsToScroll start------------------")
+    // console.log("window.scrollY before: ", window.scrollY);
+    // console.log("feedStartAbsoluteY:", feedStartAbsoluteY);
+    // console.log("currentScrollY:", currentScrollY);
+    // const scrollDelta = currentScrollY - lastScrollY;
+    // console.log("scrollDelta:", scrollDelta);
+    lastScrollY = currentScrollY;
+
+    isInternalUpdating = true;
+    let i = -1;
+    customPostsData.forEach((item) => {
+        i = i + 1;
+        // Calculate the "expected" threshold where the post slides into the top
+        const phantomTop = feedStartAbsoluteY + item.staticOffset;
+
+        // The distance the user has scrolled past this virtual position
+        const distanceExceeded = currentScrollY - phantomTop;
+
+        let newHeight;
+        if (distanceExceeded <= 0) {
+            newHeight = item.originalHeight;
+        } else if (distanceExceeded >= item.originalHeight) {
+            newHeight = 0;
+        } else {
+            newHeight = item.originalHeight - distanceExceeded;
+        }
+
+        // console.log(i);
+        // console.log("staticOffset: ", item.staticOffset);
+        // console.log("phantomTop: ", phantomTop);
+        // console.log("distanceExceeded: ", distanceExceeded);
+        // console.log("newHeight: ", newHeight);
+
+        const heightDiff = Math.abs(item.lastAppliedHeight - newHeight);
+        // Update DOM if the height difference is significant
+        if (Math.abs(heightDiff) > 1) {
+            // console.log(`[IG Debug] UPDATING Post: ${item.id}`);
+            // console.log(` - ScrollY: ${currentScrollY} (Delta: ${scrollDelta})`);
+            // console.log(` - PhantomTop: ${phantomTop.toFixed(1)}`);
+            // console.log(` - NewHeight: ${newHeight.toFixed(2)} (Prev: ${item.lastAppliedHeight.toFixed(2)})`);
+
+            // Execute DOM update
+            item.dom.style.height = `${newHeight.toFixed(1)}px`;
+            item.lastAppliedHeight = newHeight;
+        }
+    });
+    console.log("------------------syncPostsToScroll end------------------");
+    requestAnimationFrame(() => {
+        isInternalUpdating = false;
+        // console.log("window.scrollY after: ", window.scrollY);
+    });
+}
+
+// Listen for scroll events
+window.addEventListener(
+    "scroll",
+    () => {
+        if (isInternalUpdating) return;
+        requestAnimationFrame(syncPostsToScroll);
+    },
+    { passive: true },
+);
 
 // ==========================================
 // Saved Posts Overview
