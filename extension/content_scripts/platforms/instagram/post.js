@@ -445,9 +445,6 @@ function recalculateStaticOffsets() {
 
     if (posts.length === 0) return;
 
-    console.log("[IG Debug] Recalculating Static Offsets...");
-    // console.log(posts);
-
     // Use the first recorded original height to calculate the starting point.
     // This avoids calculation interference caused by current scaling/shrinkage.
     const firstPost = posts[0];
@@ -459,7 +456,6 @@ function recalculateStaticOffsets() {
 
     // Lock the starting point
     feedStartAbsoluteY = window.scrollY + firstRect.top + currentShrinkage;
-    console.log("feedStartAbsoluteY:", feedStartAbsoluteY);
 
     let currentOffset = 0;
     customPostsData = Array.from(posts).map((post) => {
@@ -487,58 +483,39 @@ function recalculateStaticOffsets() {
 function syncPostsToScroll() {
     if (customPostsData.length === 0) return;
 
-    const currentScrollY = Math.floor(window.scrollY);
-    if (Math.abs(currentScrollY - lastScrollY) < 50) return;
-    // console.log("------------------syncPostsToScroll start------------------")
-    // console.log("window.scrollY before: ", window.scrollY);
-    // console.log("feedStartAbsoluteY:", feedStartAbsoluteY);
-    // console.log("currentScrollY:", currentScrollY);
-    // const scrollDelta = currentScrollY - lastScrollY;
-    // console.log("scrollDelta:", scrollDelta);
-    lastScrollY = currentScrollY;
+    const currentScrollY = window.scrollY;
+    const scrollDelta = currentScrollY - lastScrollY;
+    if (Math.abs(scrollDelta) < 10) return;
 
     isInternalUpdating = true;
-    let i = -1;
     customPostsData.forEach((item) => {
-        i = i + 1;
         // Calculate the "expected" threshold where the post slides into the top
         const phantomTop = feedStartAbsoluteY + item.staticOffset;
 
-        // The distance the user has scrolled past this virtual position
-        const distanceExceeded = currentScrollY - phantomTop;
+        // how much of the post should be shrunk
+        const shrinkAmount = currentScrollY - phantomTop;
 
         let newHeight;
-        if (distanceExceeded <= 0) {
+        if (shrinkAmount <= 0) {
             newHeight = item.originalHeight;
-        } else if (distanceExceeded >= item.originalHeight) {
+        } else if (shrinkAmount >= item.originalHeight) {
             newHeight = 0;
         } else {
-            newHeight = item.originalHeight - distanceExceeded;
+            newHeight = item.originalHeight - shrinkAmount;
         }
-
-        // console.log(i);
-        // console.log("staticOffset: ", item.staticOffset);
-        // console.log("phantomTop: ", phantomTop);
-        // console.log("distanceExceeded: ", distanceExceeded);
-        // console.log("newHeight: ", newHeight);
 
         const heightDiff = Math.abs(item.lastAppliedHeight - newHeight);
         // Update DOM if the height difference is significant
         if (Math.abs(heightDiff) > 1) {
-            // console.log(`[IG Debug] UPDATING Post: ${item.id}`);
-            // console.log(` - ScrollY: ${currentScrollY} (Delta: ${scrollDelta})`);
-            // console.log(` - PhantomTop: ${phantomTop.toFixed(1)}`);
-            // console.log(` - NewHeight: ${newHeight.toFixed(2)} (Prev: ${item.lastAppliedHeight.toFixed(2)})`);
-
             // Execute DOM update
             item.dom.style.height = `${newHeight.toFixed(1)}px`;
             item.lastAppliedHeight = newHeight;
         }
     });
-    console.log("------------------syncPostsToScroll end------------------");
+
+    lastScrollY = currentScrollY;
     requestAnimationFrame(() => {
         isInternalUpdating = false;
-        // console.log("window.scrollY after: ", window.scrollY);
     });
 }
 
