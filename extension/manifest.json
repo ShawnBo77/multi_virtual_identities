@@ -8,7 +8,8 @@
         "sidePanel",
         "tabs",
         "alarms",
-        "declarativeNetRequest"
+        "declarativeNetRequest",
+        "declarativeNetRequestFeedback"
     ],
     "action": {
         "default_title": "Social Shield"
@@ -25,6 +26,12 @@
         "https://*.instagram.com/*"
     ],
     "content_scripts": [
+        {
+            "matches": ["https://*.instagram.com/*"],
+            "js": ["content_scripts/common/ua_disable.js"],
+            "run_at": "document_start",
+            "world": "MAIN"
+        },
         {
             "matches": ["https://*.instagram.com/*"],
             "js": [

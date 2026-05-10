@@ -31,7 +31,7 @@ export const InstagramHandler = {
             // Setup platform-specific alarms
             // We use a prefix for the alarm name to avoid collisions with other platforms
             chrome.alarms.create(this.state.config.syncAlarmName, {
-                periodInMinutes: 0.5,
+                periodInMinutes: 5,
             });
         }
     },
@@ -114,6 +114,14 @@ export const InstagramHandler = {
                     apiBase,
                     broadcastFn,
                 );
+
+            case "saveCurrentAsOriginal":
+                await this.saveOriginalIdentity();
+                return { status: "success" };
+
+            case "revertToOriginal":
+                await this.revertToOriginal(broadcastFn);
+                return { status: "success" };
 
             case "switchIdentity":
                 await this.switchIdentity(
@@ -460,11 +468,39 @@ export const InstagramHandler = {
     },
 
     /**
-     * Update the User-Agent header via DeclarativeNetRequest.
+     * Update the Packet headers via DeclarativeNetRequest.
      */
-    async updateUA(userAgent) {
+    async updateNetworkRules(userAgent) {
         const { ruleId, filter } = this.state.config;
         if (!userAgent) return;
+
+        const requestHeaders = [
+            {
+                header: "user-agent",
+                operation: "set",
+                value: userAgent,
+            },
+        ];
+
+        const hintsToRemove = [
+            "sec-ch-ua",
+            "sec-ch-ua-mobile",
+            "sec-ch-ua-platform",
+            "sec-ch-ua-platform-version",
+            "sec-ch-ua-model",
+            "sec-ch-ua-full-version-list",
+            "sec-ch-prefers-color-scheme",
+        ];
+
+        hintsToRemove.forEach((headerName) => {
+            requestHeaders.push({
+                header: headerName,
+                operation: "remove",
+            });
+        });
+
+        // const oldRules = await chrome.declarativeNetRequest.getDynamicRules();
+        // const oldRuleIds = oldRules.map(r => r.id);
         await chrome.declarativeNetRequest.updateDynamicRules({
             removeRuleIds: [ruleId],
             addRules: [
@@ -473,26 +509,127 @@ export const InstagramHandler = {
                     priority: 1,
                     action: {
                         type: "modifyHeaders",
-                        requestHeaders: [
-                            {
-                                header: "user-agent",
-                                operation: "set",
-                                value: userAgent,
-                            },
-                        ],
+                        requestHeaders: requestHeaders,
                     },
                     condition: {
                         urlFilter: filter,
                         resourceTypes: [
                             "main_frame",
                             "sub_frame",
-                            "xmlhttprequest",
+                            "stylesheet",
                             "script",
+                            "image",
+                            "font",
+                            "object",
+                            "xmlhttprequest",
+                            "ping",
+                            "csp_report",
+                            "media",
+                            "websocket",
+                            "other",
                         ],
                     },
                 },
             ],
         });
+        console.log("[Background-Ins] DNR Rules updated successfully.");
+    },
+
+    /**
+     * Captures and stores the current original browser login state.
+     */
+    async saveOriginalIdentity() {
+        // Check if a snapshot already exists to avoid overwriting the true "original" identity.
+        const storage = await chrome.storage.local.get([
+            "ins_original_identity",
+        ]);
+        if (storage.ins_original_identity) {
+            console.log(
+                "[Background-Ins] Original identity already exists. Skipping save.",
+            );
+            return;
+        }
+
+        // Fetch all .instagram.com cookies currently present in the browser.
+        const cookies = await chrome.cookies.getAll({
+            domain: ".instagram.com",
+        });
+        console.log("saveOriginalIdentity - cookies: ", cookies);
+        if (cookies.length === 0) {
+            console.log(
+                "[Background-Ins] No active session found to save as original.",
+            );
+            return;
+        }
+
+        const originalData = {
+            cookies: cookies
+        };
+
+        // Persist the original identity snapshot to local storage.
+        await chrome.storage.local.set({ ins_original_identity: originalData });
+        console.log("[Background-Ins] Original identity snapshot saved.");
+    },
+
+    /**
+     * Reverts to the original identity and revokes all system settings (DNR rules and cookies).
+     */
+    async revertToOriginal(broadcastFn) {
+        const storage = await chrome.storage.local.get([
+            "ins_original_identity",
+        ]);
+        const data = storage.ins_original_identity;
+
+        if (!data) {
+            throw new Error("No original identity found to revert to.");
+        }
+
+        console.log(
+            "[Background-Ins] Reverting to original identity and clearing rules...",
+        );
+
+        // Remove declarativeNetRequest rules (e.g., User-Agent spoofing and header removal).
+        await chrome.declarativeNetRequest.updateDynamicRules({
+            removeRuleIds: [this.state.config.ruleId],
+        });
+
+        // Fetch and remove all current Instagram cookies.
+        const currentCookies = await chrome.cookies.getAll({
+            domain: ".instagram.com",
+        });
+        console.log("revertToOriginal - currentCookies: ", currentCookies);
+        for (let cookie of currentCookies) {
+            await chrome.cookies.remove({
+                url: `https://www.instagram.com${cookie.path}`,
+                name: cookie.name,
+            });
+        }
+
+        // Restore cookies from the saved original snapshot.
+        for (let c of data.cookies) {
+            await chrome.cookies.set({
+                url: "https://www.instagram.com",
+                name: c.name,
+                value: c.value,
+                domain: c.domain,
+                path: c.path,
+                secure: c.secure,
+                httpOnly: c.httpOnly,
+                expirationDate: c.expirationDate,
+            });
+        }
+
+        chrome.tabs.query({ url: "*://*.instagram.com/*" }, (tabs) => {
+            tabs.forEach((tab) => chrome.tabs.reload(tab.id));
+        });
+
+        await chrome.storage.local.remove("ins_active_user");
+        await chrome.storage.local.remove("ins_original_identity");
+
+        console.log(
+            "[Background-Ins] System fully reverted to original state.",
+        );
+        // await broadcastFn();
     },
 
     /**
@@ -508,14 +645,16 @@ export const InstagramHandler = {
         if (!response.ok)
             throw new Error("Failed to fetch cookies from server");
 
+        await this.saveOriginalIdentity();
+
         const data = await response.json();
         if (!data.cookies || data.cookies.length === 0)
             throw new Error("No valid cookies found");
 
         console.log(`[Background-Ins] Switching to identity: ${username}`);
 
-        // Update User-Agent
-        if (data.user_agent) await this.updateUA(data.user_agent);
+        // Update Net rules (User-Agent or some headers)
+        if (data.user_agent) await this.updateNetworkRules(data.user_agent);
 
         // Clear existing Instagram cookies to avoid session conflicts
         const currentCookies = await chrome.cookies.getAll({
@@ -543,7 +682,7 @@ export const InstagramHandler = {
             });
         }
 
-        await chrome.storage.local.set({ active_user_instagram: username });
+        await chrome.storage.local.set({ ins_active_user: username });
         console.log(
             `[Background-Ins] Active user updated in storage: ${username}`,
         );

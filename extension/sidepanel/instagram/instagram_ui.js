@@ -15,6 +15,10 @@ export const InstagramUI = {
             </div>
             <div id="view-settings" class="view-section">
                 <h3>Instagram Identities</h3>
+                <button id="revert-original-btn" class="secondary-btn">
+                    🔙 Revert to Original Browser Account
+                </button>
+
                 <form id="add-cred-form">
                     <div class="input-wrapper">
                         <input type="text" id="cred-username" placeholder="Username" required>
@@ -47,6 +51,23 @@ export const InstagramUI = {
     async render(state) {
         const followListContainer = document.getElementById("follow-list");
         const credListContainer = document.getElementById("cred-list");
+        const revertBtn = document.getElementById("revert-original-btn");
+
+        // Fetch the active user from local storage
+        const storage = await chrome.storage.local.get("ins_active_user");
+        const activeUsername = storage.ins_active_user;
+
+        // Toggle revert button visibility/style based on current state
+        if (revertBtn) {
+            if (!activeUsername) {
+                revertBtn.textContent = "✅ Currently Using Original Identity";
+                revertBtn.disabled = true;
+            } else {
+                revertBtn.textContent =
+                    "🔙 Revert to Original Browser Identity";
+                revertBtn.disabled = false;
+            }
+        }
 
         if (followListContainer) {
             this.renderFollowList(
@@ -86,8 +107,8 @@ export const InstagramUI = {
      * Renders the Instagram identity list (Shared and Private)
      */
     async renderCredList(container, creds) {
-        const storage = await chrome.storage.local.get("active_user_instagram");
-        const activeUsername = storage.active_user_instagram;
+        const storage = await chrome.storage.local.get("ins_active_user");
+        const activeUsername = storage.ins_active_user;
 
         container.innerHTML = "";
         if (creds.length === 0) {
@@ -124,6 +145,7 @@ export const InstagramUI = {
                         <span class="status-badge status-${cred.status.toLowerCase()}">${cred.status.toUpperCase()}</span>
                         <div class="cred-actions">
                             <div class="toggle-container">
+                                <span class="toggle-hint">HOME FEED</span>
                                 <label class="toggle-switch">
                                     <input type="checkbox" class="fetch-feed-toggle" data-username="${cred.username}" ${cred.fetch_feed ? "checked" : ""}>
                                     <span class="slider"></span>
@@ -246,6 +268,33 @@ export const InstagramUI = {
                     }
                 },
             );
+        });
+
+        // Revert Button
+        const revertBtn = document.getElementById("revert-original-btn");
+        revertBtn?.addEventListener("click", async () => {
+            if (
+                !confirm(
+                    "This will clear all simulation rules and restore your original browser cookies. Continue?",
+                )
+            )
+                return;
+
+            revertBtn.disabled = true;
+            revertBtn.textContent = "Restoring...";
+
+            try {
+                const response = await chrome.runtime.sendMessage({
+                    action: "instagram:revertToOriginal",
+                });
+                if (response.status === "success") {
+                    alert("System reverted to original state.");
+                } else {
+                    alert("Revert failed: " + response.message);
+                }
+            } catch (e) {
+                alert("Communication error: " + e.message);
+            }
         });
 
         // Add Credential Form
