@@ -519,11 +519,41 @@ function syncPostsToScroll() {
     });
 }
 
+function UpdatePostHeights() {
+    // Update post heights dynamically since lazy-loads media,
+    // which causes containers to expand only when they are about to be scrolled into view.
+    const posts = document.querySelectorAll(".custom-post-wrapper");
+    let hasAnyPostUpdated = false;
+
+    posts.forEach((post) => {
+        const currentH = post.offsetHeight;
+        if (currentH <= 0) return;
+
+        if (!post.dataset.originalHeight) {
+            post.dataset.originalHeight = currentH;
+            hasAnyPostUpdated = true;
+        } else {
+            const oldOriginalH = parseFloat(post.dataset.originalHeight);
+            
+            if (currentH > oldOriginalH) {
+                post.dataset.originalHeight = currentH;
+                hasAnyPostUpdated = true;
+            }
+        }
+    });
+
+    return hasAnyPostUpdated;
+}
+
 // Listen for scroll events
 window.addEventListener(
     "scroll",
     () => {
         if (isInternalUpdating) return;
+        let needsRecalculate = UpdatePostHeights();
+        if (needsRecalculate) {
+            recalculateStaticOffsets();
+        }
         requestAnimationFrame(syncPostsToScroll);
     },
     { passive: true },
