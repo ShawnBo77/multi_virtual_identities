@@ -221,7 +221,6 @@
 
 .icon-shared svg {
     color: #00d2ff;
-    filter: drop-shadow(0 0 2px rgba(0, 210, 255, 0.4));
 }
 
 .icon-private svg {

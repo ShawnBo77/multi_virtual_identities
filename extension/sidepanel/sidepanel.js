@@ -164,9 +164,7 @@ async function mountPlatformUI() {
     const mountPoint = document.getElementById("platform-mount");
 
     // Find the matching platform driver based on the current URL
-    const domain = Object.keys(PLATFORM_UIS).find((d) =>
-        tab?.url?.includes(d),
-    );
+    const domain = Object.keys(PLATFORM_UIS).find((d) => tab?.url?.includes(d));
 
     if (domain) {
         const { ui, key } = PLATFORM_UIS[domain];
@@ -199,18 +197,27 @@ async function mountPlatformUI() {
 // ==========================================
 
 // Listen for updates from the background script
-chrome.runtime.onMessage.addListener(async (request) => {
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (
         request.action === "stateUpdated" &&
         currentPlatformUI &&
         currentPlatformKey
     ) {
-        const response = await chrome.runtime.sendMessage({
-            action: `${currentPlatformKey}:getState`,
-        });
-        if (response && response.data) {
-            await currentPlatformUI.render(response.data);
-        }
+        (async () => {
+            try {
+                const response = await chrome.runtime.sendMessage({
+                    action: `${currentPlatformKey}:getState`,
+                });
+                if (response && response.data) {
+                    await currentPlatformUI.render(response.data);
+                }
+            } catch (error) {
+                console.error(
+                    "[Sidepanel] Error handling state update:",
+                    error,
+                );
+            }
+        })();
     }
 });
 

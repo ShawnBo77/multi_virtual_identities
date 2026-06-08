@@ -29,7 +29,7 @@ const getContext = () => ({
 async function broadcastStateUpdate() {
     console.log("[Background] Broadcasting state update to UI scripts.");
     try {
-        await chrome.runtime.sendMessage({ action: "stateUpdated" });
+        chrome.runtime.sendMessage({ action: "stateUpdated" });
     } catch (error) {
         // This might error if the side panel isn't open, which is fine.
     }

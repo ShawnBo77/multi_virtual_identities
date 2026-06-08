@@ -10,6 +10,9 @@ const PLATFORM_ADAPTERS = {
             // Anonymous follow logic (from follow.js)
             document.addEventListener("contextmenu", handleRightClick, true);
 
+            // navbar account switcher
+            document.addEventListener("contextmenu", handleNavRightClick, true);
+
             // Start post injection logic if on the main feed (from post.js)
             if (window.location.pathname === "/") {
                 startInstagramInjection();
@@ -31,10 +34,9 @@ const PLATFORM_ADAPTERS = {
     },
 };
 
-
 // Identify the current platform based on hostname
-const currentPlatform = Object.keys(PLATFORM_ADAPTERS).find(domain => 
-    window.location.hostname.includes(domain)
+const currentPlatform = Object.keys(PLATFORM_ADAPTERS).find((domain) =>
+    window.location.hostname.includes(domain),
 );
 
 const handler = PLATFORM_ADAPTERS[currentPlatform];

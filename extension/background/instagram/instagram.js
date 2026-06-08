@@ -88,7 +88,7 @@ export const InstagramHandler = {
 
             case "getCredentials":
                 await this.fetchCredentials(clientID, apiBase, broadcastFn);
-                return { status: "sync_started" };
+                return { status: "success", data: this.state.credentialsCache };
 
             case "addCredential":
                 return await this.addCredential(
@@ -120,7 +120,7 @@ export const InstagramHandler = {
                 return { status: "success" };
 
             case "revertToOriginal":
-                await this.revertToOriginal(broadcastFn);
+                await this.revertToOriginal(broadcastFn, request.redirectUrl);
                 return { status: "success" };
 
             case "switchIdentity":
@@ -129,6 +129,7 @@ export const InstagramHandler = {
                     clientID,
                     apiBase,
                     broadcastFn,
+                    request.redirectUrl,
                 );
                 return { status: "success" };
 
@@ -563,7 +564,7 @@ export const InstagramHandler = {
         }
 
         const originalData = {
-            cookies: cookies
+            cookies: cookies,
         };
 
         // Persist the original identity snapshot to local storage.
@@ -574,7 +575,7 @@ export const InstagramHandler = {
     /**
      * Reverts to the original identity and revokes all system settings (DNR rules and cookies).
      */
-    async revertToOriginal(broadcastFn) {
+    async revertToOriginal(broadcastFn, redirectUrl = "https://www.instagram.com/") {
         const storage = await chrome.storage.local.get([
             "ins_original_identity",
         ]);
@@ -620,7 +621,13 @@ export const InstagramHandler = {
         }
 
         chrome.tabs.query({ url: "*://*.instagram.com/*" }, (tabs) => {
-            tabs.forEach((tab) => chrome.tabs.reload(tab.id));
+            tabs.forEach((tab) => {
+                if (tab.active && redirectUrl) {
+                    chrome.tabs.update(tab.id, { url: redirectUrl });
+                } else {
+                    chrome.tabs.reload(tab.id);
+                }
+            });
         });
 
         await chrome.storage.local.remove("ins_active_user");
@@ -635,7 +642,13 @@ export const InstagramHandler = {
     /**
      * Execute identity switch by replacing cookies and UA.
      */
-    async switchIdentity(username, clientID, apiBase, broadcastFn) {
+    async switchIdentity(
+        username,
+        clientID,
+        apiBase,
+        broadcastFn,
+        redirectUrl = null,
+    ) {
         const response = await fetch(
             `${apiBase}/instagram/credentials/${username}`,
             {
@@ -688,7 +701,13 @@ export const InstagramHandler = {
         );
 
         chrome.tabs.query({ url: "*://*.instagram.com/*" }, (tabs) => {
-            tabs.forEach((tab) => chrome.tabs.reload(tab.id));
+            tabs.forEach((tab) => {
+                if (tab.active && redirectUrl) {
+                    chrome.tabs.update(tab.id, { url: redirectUrl });
+                } else {
+                    chrome.tabs.reload(tab.id);
+                }
+            });
         });
 
         // await broadcastFn();

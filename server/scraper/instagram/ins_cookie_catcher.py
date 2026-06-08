@@ -122,7 +122,7 @@ def can_find_logo(driver):
 
 def check_login_status(driver):
     current_url_lower = driver.current_url.lower()
-    fail_keywords = ["login", "challenge", "two_factor", "checkpoint", "suspend", "consent", "contact", "reset"]
+    fail_keywords = ["login", "challenge", "two_factor", "checkpoint", "suspend", "consent", "contact", "reset", "auth"]
 
     for keyword in fail_keywords:
         if keyword.lower() in current_url_lower:
