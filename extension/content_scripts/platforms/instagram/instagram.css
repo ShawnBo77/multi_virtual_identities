@@ -737,10 +737,35 @@
 }
 
 /* Flex layout helper to align icon and text horizontally */
+/* Update wrapper to stack username and tags cleanly vertically */
 .nav-switch-label-wrapper {
     display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+/* Horizontal line grouping icon and account user text */
+.nav-switch-username-row {
+    display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+}
+
+.nav-switch-username {
+    font-weight: 500;
+}
+
+/* Secondary meta line description for categorization */
+.nav-switch-category-meta {
+    font-size: 10px;
+    color: #8e8e8e;
+    margin-left: 24px;
+}
+
+/* Falling back style rules for accounts with no defined categories */
+.nav-switch-category-meta.fallback {
+    font-style: italic;
 }
 
 /* Align emoji fonts correctly with the text bounds */

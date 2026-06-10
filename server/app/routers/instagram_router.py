@@ -169,6 +169,7 @@ def register_credential(
             password=payload.password,
             is_shared=payload.is_shared,
             fetch_feed=payload.fetch_feed,
+            categories=payload.categories,
         )
     except HTTPException as http_ex:
         raise http_ex

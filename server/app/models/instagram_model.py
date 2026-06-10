@@ -14,6 +14,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from ..database import Base
+from typing import List
 
 
 class InstagramUser(Base):
@@ -133,6 +134,36 @@ class InstagramCredential(Base):
     last_used_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     client_links = relationship("ClientInstagramCredential", back_populates="credential", cascade="all, delete-orphan")
+    category_links = relationship(
+        "InstagramCredentialCategory", back_populates="credential", cascade="all, delete-orphan"
+    )
+
+    @property
+    def categories(self) -> List[str]:
+        return [cl.category.name for cl in self.category_links]
+
+
+class InstagramCategory(Base):
+    __tablename__ = "instagram_categories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    credential_links = relationship(
+        "InstagramCredentialCategory", back_populates="category", cascade="all, delete-orphan"
+    )
+
+
+class InstagramCredentialCategory(Base):
+    __tablename__ = "instagram_credential_categories"
+
+    credential_id = Column(Integer, ForeignKey("instagram_credentials.id", ondelete="CASCADE"), primary_key=True)
+    category_id = Column(Integer, ForeignKey("instagram_categories.id", ondelete="CASCADE"), primary_key=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    credential = relationship("InstagramCredential", back_populates="category_links")
+    category = relationship("InstagramCategory", back_populates="credential_links")
 
 
 class InstagramScrapeLog(Base):

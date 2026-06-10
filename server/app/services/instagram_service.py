@@ -480,7 +480,13 @@ def upsert_instagram_credential(
 
 
 def register_credential_for_client(
-    db: Session, client_id: int, username: str, password: str, is_shared: bool = False, fetch_feed: bool = False
+    db: Session,
+    client_id: int,
+    username: str,
+    password: str,
+    is_shared: bool = False,
+    fetch_feed: bool = False,
+    categories: Optional[List[str]] = None,
 ) -> instagram_model.InstagramCredential:
     client = db.query(client_model.Client).filter(client_model.Client.id == client_id).first()
     if not client:
@@ -488,6 +494,23 @@ def register_credential_for_client(
 
     # Upsert Credential
     cred = upsert_instagram_credential(db, username, password, is_shared)
+
+    # Handle category tags synchronization (if categories are provided)
+    if categories is not None:
+        # Clear old category relationships for this credential (overwrite update)
+        db.query(instagram_model.InstagramCredentialCategory).filter_by(credential_id=cred.id).delete()
+
+        for cat_name in categories:
+            # Find or create category
+            cat = db.query(instagram_model.InstagramCategory).filter_by(name=cat_name).first()
+            if not cat:
+                cat = instagram_model.InstagramCategory(name=cat_name)
+                db.add(cat)
+                db.flush()  # Flush to get the new category ID
+
+            # Create relationship
+            link_cat = instagram_model.InstagramCredentialCategory(credential_id=cred.id, category_id=cat.id)
+            db.add(link_cat)
 
     # Association Process
     link = (
@@ -671,6 +694,7 @@ def get_credentials_by_client(db: Session, client_id: int) -> List[instagram_mod
                 "is_shared": cred.is_shared,
                 "last_used_at": cred.last_used_at,
                 "fetch_feed": link.fetch_feed,
+                "categories": cred.categories,
             }
         )
 

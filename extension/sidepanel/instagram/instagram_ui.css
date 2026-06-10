@@ -250,16 +250,46 @@
     white-space: nowrap;
 }
 
-/* Column 1: Username */
+.cred-info-wrapper {
+    flex: 0 0 110px;
+    display: flex;
+    flex-direction: column;
+    margin-left: 5px;
+    margin-right: 10px;
+    overflow: hidden;
+}
+
 .cred-username {
-    flex: 0 0 100px;
     font-size: 13px;
     font-weight: 600;
     color: #212529;
     overflow: hidden;
     text-overflow: ellipsis;
-    margin-right: 10px;
-    margin-left: 5px;
+    white-space: nowrap;
+}
+
+/* Category grid container row alignment */
+.cred-categories-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    margin-top: 3px;
+}
+
+/* Base category tag decoration */
+.cat-tag {
+    font-size: 10px;
+    background-color: #eaeaea;
+    color: #555;
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+/* Uncategorized fallback tag appearance */
+.cat-tag.fallback {
+    background-color: #f5f5f5;
+    color: #999;
+    font-style: italic;
 }
 
 /* Column 2: Status Badge */

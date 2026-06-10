@@ -168,6 +168,7 @@ class CredentialCreate(BaseModel):
     password: str
     is_shared: bool = False
     fetch_feed: bool = False
+    categories: Optional[List[str]] = None
 
 
 class CredentialResponse(BaseModel):
@@ -177,6 +178,7 @@ class CredentialResponse(BaseModel):
     last_used_at: Optional[datetime] = None
     is_shared: bool = False
     fetch_feed: bool = False
+    categories: List[str] = []
 
     class Config:
         from_attributes = True

@@ -27,6 +27,9 @@ export const InstagramUI = {
                         <input type="password" id="cred-password" placeholder="Password" required>
                         <span class="toggle-password" data-target="cred-password">👁️</span>
                     </div>
+                    <div class="input-wrapper" style="margin-top: 5px;">
+                        <input type="text" id="cred-categories" placeholder="Categories (e.g., Badminton, Basketball)">
+                    </div>
                     <div class="checkbox-container">
                         <input type="checkbox" id="cred-is-shared">
                         <label for="cred-is-shared">Make this a shared identity</label>
@@ -135,13 +138,31 @@ export const InstagramUI = {
 
             list.forEach((cred) => {
                 const isActive = cred.username === activeUsername;
+
+                // Process categories display with 'General' fallback logic
+                const displayCategories =
+                    cred.categories && cred.categories.length > 0
+                        ? cred.categories
+                              .map(
+                                  (cat) =>
+                                      `<span class="cat-tag">${cat}</span>`,
+                              )
+                              .join("")
+                        : `<span class="cat-tag fallback">General</span>`;
+
                 html += `
                     <div class="cred-item ${isActive ? "active" : ""}">
                         <button class="switch-identity-btn" data-username="${cred.username}" 
                             ${cred.status !== "success" ? "disabled" : ""} title="Switch Identity">
                             ${isActive ? "🟢" : "🔄"}
                         </button>
-                        <span class="cred-username" title="${cred.username}">${cred.username}</span>
+                        <div class="cred-info-wrapper">
+                            <span class="cred-username" title="${cred.username}">${cred.username}</span>
+                            <div class="cred-categories-row">
+                                ${displayCategories}
+                            </div>
+                        </div>
+                        
                         <span class="status-badge status-${cred.status.toLowerCase()}">${cred.status.toUpperCase()}</span>
                         <div class="cred-actions">
                             <div class="toggle-container">
@@ -310,6 +331,16 @@ export const InstagramUI = {
             const isShared = document.getElementById("cred-is-shared").checked;
             const fetchFeed =
                 document.getElementById("cred-fetch-feed").checked;
+            // Extract raw string and break down into trimmed array filters
+            const rawCategories = document
+                .getElementById("cred-categories")
+                .value.trim();
+            const categories = rawCategories
+                ? rawCategories
+                      .split(",")
+                      .map((cat) => cat.trim())
+                      .filter((cat) => cat.length > 0)
+                : [];
             const btn = addCredForm.querySelector("button");
 
             if (!username || !password) return;
@@ -324,6 +355,7 @@ export const InstagramUI = {
                     password,
                     is_shared: isShared,
                     fetch_feed: fetchFeed,
+                    categories: categories,
                 },
             });
 

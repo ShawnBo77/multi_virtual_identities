@@ -114,11 +114,20 @@ async function showNavSwitchMenu(x, y, navTarget) {
             ? IDENTITY_ICONS.shared
             : IDENTITY_ICONS.private;
         const iconClass = cred.is_shared ? "icon-shared" : "icon-private";
+        const displayCategories =
+            cred.categories && cred.categories.length > 0
+                ? cred.categories.join(", ")
+                : "General";
 
         item.innerHTML = `
             <div class="nav-switch-label-wrapper">
-                <span class="nav-switch-svg-icon ${iconClass}">${identityIconHtml}</span>
-                <span>@${cred.username}</span>
+                <div class="nav-switch-username-row">
+                    <span class="nav-switch-svg-icon ${iconClass}">${identityIconHtml}</span>
+                    <span class="nav-switch-username">@${cred.username}</span>
+                </div>
+                <span class="nav-switch-category-meta ${cred.categories && cred.categories.length > 0 ? "" : "fallback"}">
+                    Tag: ${displayCategories}
+                </span>
             </div>
             ${isActive ? '<span class="nav-switch-checkmark">✓</span>' : ""}
         `;

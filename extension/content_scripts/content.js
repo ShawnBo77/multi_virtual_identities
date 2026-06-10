@@ -1,7 +1,9 @@
 const PLATFORM_ADAPTERS = {
     "instagram.com": {
         init: async () => {
-            console.log("[Social Shield] Initializing Instagram handler...");
+            console.log(
+                "[Multiple Virtual Identities] Initializing Instagram handler...",
+            );
 
             // Set global Client ID (from client.js)
             window.CLIENT_ID = await getClientId();
