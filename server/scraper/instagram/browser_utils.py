@@ -2,7 +2,7 @@ import time
 import random
 from selenium.webdriver.common.by import By
 
-FAIL_KEYWORDS = ["login", "challenge", "two_factor", "checkpoint", "suspend", "consent", "contact", "reset"]
+FAIL_KEYWORDS = ["login", "challenge", "two_factor", "checkpoint", "suspend", "consent", "contact", "reset", "auth"]
 
 USERNAME_LOCATORS = [
     (By.NAME, "username"),

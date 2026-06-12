@@ -51,7 +51,7 @@ class InstagramPostScraper:
         self._close_browser()
         print("[PostScraper] Auto-scraper stopped.")
 
-    def _ensure_browser_for_credential(self, cred_id: Optional[int] = None):
+    def _ensure_browser_for_credential(self, cred_id: Optional[int] = None, manual_intervention: bool = True):
         """
         Ensures the browser is open and logged in with the desired credential.
         1. If cred_id is None, and we have a browser open, keep using it.
@@ -112,20 +112,31 @@ class InstagramPostScraper:
                 self.driver
             ):
                 print(f"[PostScraper] Login failed for {self.current_cred_username}.")
-                with SessionLocal() as db:
-                    instagram_service.update_credential_status(
-                        db, self.current_cred_id, status=instagram_model.CredentialStatus.PENDING
-                    )
-                self._close_browser()
-                return False
 
-            if not user_agent:
-                current_user_agent = self.driver.execute_script("return navigator.userAgent;")
-                current_cookies = self.driver.get_cookies()
-                with SessionLocal() as db:
-                    instagram_service.update_credential_session(
-                        db, self.current_cred_id, {"user_agent": current_user_agent, "cookies": current_cookies}
-                    )
+                success = False
+                if manual_intervention:
+                    print(f"\n[PostScraper] ⚠️ Manual Intervention triggered for @{self.current_cred_username}.")
+                    input(">>> Please complete login manually in the browser, then press [ENTER] to resume...")
+
+                    if verify_login_status(self.driver):
+                        print("[PostScraper] Manual login successful! Refreshing DB tokens...")
+                        success = True
+                    else:
+                        print("[PostScraper] Still not logged in.")
+                if not success:
+                    with SessionLocal() as db:
+                        instagram_service.update_credential_status(
+                            db, self.current_cred_id, status=instagram_model.CredentialStatus.PENDING
+                        )
+                    self._close_browser()
+                    return False
+
+            current_user_agent = self.driver.execute_script("return navigator.userAgent;")
+            current_cookies = self.driver.get_cookies()
+            with SessionLocal() as db:
+                instagram_service.update_credential_session(
+                    db, self.current_cred_id, {"user_agent": current_user_agent, "cookies": current_cookies}
+                )
 
             return True
 
@@ -207,7 +218,7 @@ class InstagramPostScraper:
                     print(f"\n[PostScraper] >>> Processing Task: {username} (Any Credential) <<<")
 
                 # Prepare Browser (Switches only if necessary)
-                if not self._ensure_browser_for_credential(sticky_cred_id):
+                if not self._ensure_browser_for_credential(sticky_cred_id, manual_intervention=True):
                     print("[PostScraper] Could not initialize browser. Sleeping 5 mins.")
                     self._wait(300)
                     continue

@@ -53,7 +53,7 @@ class InstagramHomeFeedScraper:
             finally:
                 self.driver = None
 
-    def _ensure_browser(self, cred):
+    def _ensure_browser(self, cred, manual_intervention: bool = True):
         """
         Maintains the browser instance and performs authentication.
         Returns a status string indicating the result of the operation.
@@ -86,19 +86,31 @@ class InstagramHomeFeedScraper:
                 self.driver
             ):
                 print(f"[HomeScraper] Login failed for {cred.username}.")
-                with SessionLocal() as db:
-                    instagram_service.update_credential_status(
-                        db, self.current_cred_id, status=instagram_model.CredentialStatus.PENDING
-                    )
-                return False
 
-            if not cred.user_agent:
-                current_user_agent = self.driver.execute_script("return navigator.userAgent;")
-                current_cookies = self.driver.get_cookies()
-                with SessionLocal() as db:
-                    instagram_service.update_credential_session(
-                        db, cred.id, {"user_agent": current_user_agent, "cookies": current_cookies}
-                    )
+                success = False
+                if manual_intervention:
+                    print(f"\n[HomeScraper] ⚠️ Manual Intervention triggered for @{cred.username}.")
+                    input(">>> Please complete login manually in the browser, then press [ENTER] to resume...")
+
+                    if verify_login_status(self.driver):
+                        print("[HomeScraper] Manual login successful! Refreshing DB tokens...")
+                        success = True
+                    else:
+                        print("[HomeScraper] Still not logged in.")
+                if not success:
+                    with SessionLocal() as db:
+                        instagram_service.update_credential_status(
+                            db, cred.id, status=instagram_model.CredentialStatus.PENDING
+                        )
+                    self._close_browser()
+                    return False
+
+            current_user_agent = self.driver.execute_script("return navigator.userAgent;")
+            current_cookies = self.driver.get_cookies()
+            with SessionLocal() as db:
+                instagram_service.update_credential_session(
+                    db, cred.id, {"user_agent": current_user_agent, "cookies": current_cookies}
+                )
 
             return True
 
@@ -138,7 +150,7 @@ class InstagramHomeFeedScraper:
 
                         print(f"[HomeScraper] >>> Scraping Home Feed for @{cred.username}")
 
-                        if not self._ensure_browser(cred):
+                        if not self._ensure_browser(cred, manual_intervention=True):
                             print("[HomeScraper] Could not initialize browser. Sleeping 3 mins.")
                             self._wait(180)
                             continue
