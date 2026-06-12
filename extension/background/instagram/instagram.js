@@ -120,7 +120,12 @@ export const InstagramHandler = {
                 return { status: "success" };
 
             case "revertToOriginal":
-                await this.revertToOriginal(broadcastFn, request.redirectUrl);
+                await this.revertToOriginal(
+                    clientID,
+                    apiBase,
+                    broadcastFn,
+                    request.redirectUrl,
+                );
                 return { status: "success" };
 
             case "switchIdentity":
@@ -145,6 +150,28 @@ export const InstagramHandler = {
                     `Action ${action} not implemented for Instagram`,
                 );
         }
+    },
+
+    toSeleniumCookies(chromeCookies) {
+        if (!chromeCookies || !Array.isArray(chromeCookies)) return [];
+
+        return chromeCookies.map((c) => {
+            const cookieObj = {
+                name: c.name,
+                value: c.value,
+                domain: c.domain,
+                path: c.path,
+                secure: c.secure,
+                httpOnly: c.httpOnly,
+            };
+
+            // Translate Chrome float timestamp into standard integer expiry for Python Selenium
+            if (c.expirationDate !== undefined) {
+                cookieObj.expiry = Math.floor(c.expirationDate);
+            }
+
+            return cookieObj;
+        });
     },
 
     /**
@@ -485,12 +512,19 @@ export const InstagramHandler = {
 
         const hintsToRemove = [
             "sec-ch-ua",
+            "sec-ch-ua-arch",
+            "sec-ch-ua-bitness",
+            "sec-ch-ua-form-factors",
+            "sec-ch-ua-full-version",
+            "sec-ch-ua-full-version-list",
             "sec-ch-ua-mobile",
+            "sec-ch-ua-model",
             "sec-ch-ua-platform",
             "sec-ch-ua-platform-version",
-            "sec-ch-ua-model",
-            "sec-ch-ua-full-version-list",
-            "sec-ch-prefers-color-scheme",
+            "sec-ch-ua-wow64",
+            "sec-ch-viewport-height",
+            "sec-ch-viewport-width",
+            "sec-ch-width",
         ];
 
         hintsToRemove.forEach((headerName) => {
@@ -539,7 +573,7 @@ export const InstagramHandler = {
     /**
      * Captures and stores the current original browser login state.
      */
-    async saveOriginalIdentity() {
+    async saveOriginalIdentity(currentCookies = null) {
         // Check if a snapshot already exists to avoid overwriting the true "original" identity.
         const storage = await chrome.storage.local.get([
             "ins_original_identity",
@@ -551,11 +585,14 @@ export const InstagramHandler = {
             return;
         }
 
-        // Fetch all .instagram.com cookies currently present in the browser.
-        const cookies = await chrome.cookies.getAll({
-            domain: ".instagram.com",
-        });
-        console.log("saveOriginalIdentity - cookies: ", cookies);
+        let cookies = currentCookies;
+        if (!cookies) {
+            cookies = await chrome.cookies.getAll({
+                domain: ".instagram.com",
+            });
+        }
+
+        // console.log("saveOriginalIdentity - cookies: ", cookies);
         if (cookies.length === 0) {
             console.log(
                 "[Background-Ins] No active session found to save as original.",
@@ -572,17 +609,70 @@ export const InstagramHandler = {
         console.log("[Background-Ins] Original identity snapshot saved.");
     },
 
+    async syncCookiesToBackend(clientID, apiBase, username, cookies) {
+        try {
+            console.log(
+                `[Background-Ins] Syncing fresh cookies for @${username} to backend...`,
+            );
+            const seleniumCookies = this.toSeleniumCookies(cookies);
+
+            await fetch(
+                `${apiBase}/instagram/credentials/${username}/sync-session`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Client-ID": clientID,
+                    },
+                    body: JSON.stringify({
+                        status: "success",
+                        cookies: seleniumCookies,
+                    }),
+                },
+            );
+            console.log(
+                `[Background-Ins] Cookies for @${username} successfully synced to database.`,
+            );
+        } catch (syncErr) {
+            console.error(
+                `[Background-Ins] Failed to sync session for @${username}:`,
+                syncErr,
+            );
+        }
+    },
+
     /**
      * Reverts to the original identity and revokes all system settings (DNR rules and cookies).
      */
-    async revertToOriginal(broadcastFn, redirectUrl = "https://www.instagram.com/") {
+    async revertToOriginal(
+        clientID,
+        apiBase,
+        broadcastFn,
+        redirectUrl = "https://www.instagram.com/",
+        syncActiveCookies = true,
+    ) {
         const storage = await chrome.storage.local.get([
             "ins_original_identity",
+            "ins_active_user",
         ]);
-        const data = storage.ins_original_identity;
+        const originalData = storage.ins_original_identity;
+        const activeUser = storage.ins_active_user;
 
-        if (!data) {
+        if (!originalData) {
             throw new Error("No original identity found to revert to.");
+        }
+
+        // Sync current active user's cookies
+        const currentCookies = await chrome.cookies.getAll({
+            domain: ".instagram.com",
+        });
+        if (activeUser && currentCookies.length > 0) {
+            await this.syncCookiesToBackend(
+                clientID,
+                apiBase,
+                activeUser,
+                currentCookies,
+            );
         }
 
         console.log(
@@ -594,10 +684,7 @@ export const InstagramHandler = {
             removeRuleIds: [this.state.config.ruleId],
         });
 
-        // Fetch and remove all current Instagram cookies.
-        const currentCookies = await chrome.cookies.getAll({
-            domain: ".instagram.com",
-        });
+        // Remove all current Instagram cookies.
         console.log("revertToOriginal - currentCookies: ", currentCookies);
         for (let cookie of currentCookies) {
             await chrome.cookies.remove({
@@ -607,7 +694,7 @@ export const InstagramHandler = {
         }
 
         // Restore cookies from the saved original snapshot.
-        for (let c of data.cookies) {
+        for (let c of originalData.cookies) {
             await chrome.cookies.set({
                 url: "https://www.instagram.com",
                 name: c.name,
@@ -649,6 +736,26 @@ export const InstagramHandler = {
         broadcastFn,
         redirectUrl = null,
     ) {
+        // Save the currently active identity
+        const storage = await chrome.storage.local.get(["ins_active_user"]);
+        const activeUser = storage.ins_active_user;
+        const currentCookies = await chrome.cookies.getAll({
+            domain: ".instagram.com",
+        });
+
+        if (!activeUser) {
+            // Current user is 'Original Identity'
+            await this.saveOriginalIdentity(currentCookies);
+        } else {
+            await this.syncCookiesToBackend(
+                clientID,
+                apiBase,
+                activeUser,
+                currentCookies,
+            );
+        }
+
+        // Pull & Inject target identity
         const response = await fetch(
             `${apiBase}/instagram/credentials/${username}`,
             {
@@ -657,8 +764,6 @@ export const InstagramHandler = {
         );
         if (!response.ok)
             throw new Error("Failed to fetch cookies from server");
-
-        await this.saveOriginalIdentity();
 
         const data = await response.json();
         if (!data.cookies || data.cookies.length === 0)
@@ -670,9 +775,6 @@ export const InstagramHandler = {
         if (data.user_agent) await this.updateNetworkRules(data.user_agent);
 
         // Clear existing Instagram cookies to avoid session conflicts
-        const currentCookies = await chrome.cookies.getAll({
-            domain: ".instagram.com",
-        });
         for (let cookie of currentCookies) {
             await chrome.cookies.remove({
                 url: `https://www.instagram.com${cookie.path}`,

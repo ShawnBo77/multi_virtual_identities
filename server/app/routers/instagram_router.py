@@ -250,3 +250,21 @@ def update_credential_settings(
         raise HTTPException(status_code=404, detail=f"Credential settings for '{username}' not found for this client.")
 
     return {"status": "success", "message": f"Settings for {username} updated."}
+
+
+@router.post("/credentials/{username}/sync-session", summary="Sync active session cookies or status from Extension")
+def sync_credential_session(
+    username: str,
+    payload: dict,  # Expects {"status": "success", "cookies": [...]} or {"status": "failed", "reason": "..."}
+    client_id: int = Header(..., alias="Client-ID"),
+    db: Session = Depends(get_db),
+):
+    try:
+        return instagram_service.sync_extension_session_for_client(
+            db=db, client_id=client_id, username=username, payload=payload
+        )
+    except HTTPException as http_ex:
+        raise http_ex
+    except Exception as e:
+        print(f"Error syncing extension session: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error synchronizing extension session.")

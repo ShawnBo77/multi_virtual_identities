@@ -460,7 +460,6 @@ def upsert_instagram_credential(
     if cred:
         # Update existing credential
         cred.password = password
-        cred.status = instagram_model.CredentialStatus.PENDING
         cred.is_shared = is_shared
         print(f"    - [DB] Updated password for {username}.")
     else:
@@ -630,6 +629,34 @@ def update_credential_status(db: Session, cred_id: int, status: instagram_model.
         cred.status = status
         db.commit()
         print(f"    - [DB] Credential {cred.username} status changed to {status}")
+
+
+def sync_extension_session_for_client(db: Session, client_id: int, username: str, payload: dict) -> dict:
+    """
+    Validates client access, then processes session synchronization from the extension background.
+    """
+    # Fetch credential object by username
+    cred = get_credential_by_username(db, username)
+    if not cred:
+        raise HTTPException(status_code=404, detail="Credential not found")
+
+    # Verify if this requesting client actually has linked access to this identity
+    linked_creds = get_credentials_by_client(db, client_id)
+    if not any(c["username"] == username for c in linked_creds):
+        raise HTTPException(status_code=403, detail="You do not have access to this identity.")
+
+    # Process status states based on extension validation results
+    if payload.get("status") == "success":
+        session_data = {"cookies": payload.get("cookies")}
+        update_credential_session(db, cred.id, session_data)
+        return {"status": "success", "message": "Session cookies refreshed successfully."}
+    else:
+        # Reuse existing status modification function
+        update_credential_status(db, cred.id, instagram_model.CredentialStatus.LOGIN_FAILED)
+        return {
+            "status": "success",
+            "message": f"Credential status marked as {instagram_model.CredentialStatus.LOGIN_FAILED}.",
+        }
 
 
 def create_scrape_log(db: Session, target_user_id: int, credential_id: int, status: instagram_model.ScrapeStatus):
