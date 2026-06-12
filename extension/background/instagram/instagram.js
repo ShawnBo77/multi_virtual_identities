@@ -600,8 +600,28 @@ export const InstagramHandler = {
             return;
         }
 
+        let originalUsername = "Original Identity";
+        try {
+            const domResponse = await this.forwardToContentScript(
+                "getInstagramUsername",
+            );
+            if (
+                domResponse &&
+                domResponse.status === "success" &&
+                domResponse.username
+            ) {
+                originalUsername = domResponse.username;
+            }
+        } catch (err) {
+            console.error(
+                "[Background-Ins] Failed to extract username from DOM elements:",
+                err,
+            );
+        }
+
         const originalData = {
             cookies: cookies,
+            username: originalUsername,
         };
 
         // Persist the original identity snapshot to local storage.

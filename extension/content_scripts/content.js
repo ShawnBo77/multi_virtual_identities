@@ -31,6 +31,61 @@ const PLATFORM_ADAPTERS = {
                         }),
                     );
                 return true;
+            } else if (request.action === "getInstagramUsername") {
+                try {
+                    // Extract from the image alt attribute
+                    const img = document.querySelector(
+                        'img[alt*="的大頭貼照"], img[alt*="\'s profile picture"]',
+                    );
+                    if (img) {
+                        const altText = img.getAttribute("alt") || "";
+                        // Strips localized text suffixes based on language patterns
+                        const username = altText
+                            .replace("的大頭貼照", "")
+                            .replace("'s profile picture", "")
+                            .trim();
+                        if (username) {
+                            sendResponse({
+                                status: "success",
+                                username: username,
+                            });
+                            return true;
+                        }
+                    }
+
+                    // Extract from the anchor link href attribute (e.g., href="/username/")
+                    // Finds the profile anchor tag wrapping the avatar image in the sidebar layout
+                    const profileLink = document
+                        .querySelector('a[href^="/"][role="link"] img')
+                        ?.closest("a");
+                    if (profileLink) {
+                        const href = profileLink.getAttribute("href") || "";
+                        const username = href.replace(/\//g, "").trim(); // Strips out surrounding slashes
+
+                        // Ensure it's a real user handle and not a generic system navigation path
+                        if (
+                            username &&
+                            !["explore", "reels", "direct", "stories"].includes(
+                                username,
+                            )
+                        ) {
+                            sendResponse({
+                                status: "success",
+                                username: username,
+                            });
+                            return true;
+                        }
+                    }
+
+                    sendResponse({
+                        status: "error",
+                        message:
+                            "Target avatar elements not visible in current DOM",
+                    });
+                } catch (err) {
+                    sendResponse({ status: "error", message: err.message });
+                }
+                return true;
             }
         },
     },

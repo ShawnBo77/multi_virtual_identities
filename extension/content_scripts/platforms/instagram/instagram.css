@@ -698,7 +698,6 @@
 /* ==========================================================================
    Navigation Bar Custom Switch Account Context Menu
    ========================================================================== */
-
 #nav-switch-context-menu {
     position: absolute;
     z-index: 999999;
@@ -710,7 +709,7 @@
     box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     font-size: 14px;
-    min-width: 210px;
+    min-width: 260px;
     animation: fadeInMenu 0.1s ease-out;
 }
 
@@ -745,6 +744,15 @@
     gap: 2px;
 }
 
+.nav-switch-label-wrapper.item-column {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    overflow: hidden;
+    flex-grow: 1;
+}
+
 /* Horizontal line grouping icon and account user text */
 .nav-switch-username-row {
     display: flex;
@@ -758,7 +766,7 @@
 
 /* Secondary meta line description for categorization */
 .nav-switch-category-meta {
-    font-size: 10px;
+    font-size: 11px;
     color: #8e8e8e;
     margin-left: 24px;
 }

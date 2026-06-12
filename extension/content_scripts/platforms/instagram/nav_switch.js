@@ -21,7 +21,7 @@ function detectNavClick(e) {
         return { type: "Home", url: "https://www.instagram.com/" };
     }
     if (textKey.includes("reel")) {
-        return { type: "Reel", url: "https://www.instagram.com/reels/" };
+        return { type: "Reels", url: "https://www.instagram.com/reels/" };
     }
     if (
         textKey.includes("訊息") ||
@@ -51,12 +51,22 @@ async function showNavSwitchMenu(x, y, navTarget) {
     const existingMenu = document.getElementById("nav-switch-context-menu");
     if (existingMenu) existingMenu.remove();
 
+    // Trigger original identity backup
+    await chrome.runtime.sendMessage({
+        action: "instagram:saveCurrentAsOriginal",
+    });
+
     // Fetch credentials
     const response = await chrome.runtime.sendMessage({
         action: "instagram:getCredentials",
     });
-    const storage = await chrome.storage.local.get("ins_active_user");
+    const storage = await chrome.storage.local.get([
+        "ins_active_user",
+        "ins_original_identity",
+    ]);
     const activeUsername = storage.ins_active_user;
+    const originalIdentity = storage.ins_original_identity;
+    const originalUsername = originalIdentity?.username || "Browser Account";
 
     if (!response || response.status !== "success" || !response.data) {
         console.warn(
@@ -86,9 +96,11 @@ async function showNavSwitchMenu(x, y, navTarget) {
     const origItem = document.createElement("div");
     origItem.className = "nav-switch-item";
     origItem.innerHTML = `
-        <div class="nav-switch-label-wrapper">
-            <span class="nav-switch-emoji-icon">${origIcon}</span>
-            <span>Original Browser Account</span>
+        <div class="nav-switch-label-wrapper item-column">
+            <div class="nav-switch-username-row">
+                <span class="nav-switch-emoji-icon">${origIcon}</span>
+                <span class="nav-switch-username">(Original) ${originalUsername}</span>
+            </div>
         </div>
         ${isOriginalActive ? '<span class="nav-switch-checkmark">✓</span>' : ""}
     `;
@@ -123,7 +135,7 @@ async function showNavSwitchMenu(x, y, navTarget) {
             <div class="nav-switch-label-wrapper">
                 <div class="nav-switch-username-row">
                     <span class="nav-switch-svg-icon ${iconClass}">${identityIconHtml}</span>
-                    <span class="nav-switch-username">@${cred.username}</span>
+                    <span class="nav-switch-username">(Virtual) ${cred.username}</span>
                 </div>
                 <span class="nav-switch-category-meta ${cred.categories && cred.categories.length > 0 ? "" : "fallback"}">
                     Tag: ${displayCategories}
