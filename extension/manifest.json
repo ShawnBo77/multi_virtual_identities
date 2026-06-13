@@ -9,7 +9,8 @@
         "tabs",
         "alarms",
         "declarativeNetRequest",
-        "declarativeNetRequestFeedback"
+        "declarativeNetRequestFeedback",
+        "proxy"
     ],
     "action": {
         "default_title": "Multiple Virtual Identities"

@@ -8,3 +8,4 @@ flows
 .vscode
 localhost*
 *.env
+*.log

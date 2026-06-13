@@ -1,5 +1,6 @@
 import os
 import contextlib
+import asyncio
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +10,7 @@ from .routers import client_router, follow_router, instagram_router
 from .services.instagram_credential_scraper import instagram_credential_scraper
 from .services.instagram_post_scraper import instagram_post_scraper
 from .services.instagram_home_feed_scraper import instagram_home_feed_scraper
+from app.proxy_service import start_proxy_server
 
 # Create all tables
 client_model.Base.metadata.create_all(bind=engine)
@@ -19,6 +21,7 @@ instagram_model.Base.metadata.create_all(bind=engine)
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     print("--- Server Starting: Launching Background Scraper ---")
+    proxy_task = asyncio.create_task(start_proxy_server(host="0.0.0.0", port=8888))
     # instagram_credential_scraper.start()
     # instagram_post_scraper.start()
     # instagram_home_feed_scraper.start()
@@ -26,6 +29,7 @@ async def lifespan(app: FastAPI):
     yield
 
     print("--- Server Stopping: Shutting down Scraper ---")
+    proxy_task.cancel()
     # instagram_credential_scraper.stop()
     # instagram_post_scraper.stop()
     # instagram_home_feed_scraper.stop()

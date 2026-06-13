@@ -699,6 +699,16 @@ export const InstagramHandler = {
             "[Background-Ins] Reverting to original identity and clearing rules...",
         );
 
+        // Destroy the proxy tunnel to revert traffic back to local ISP
+        await new Promise((resolve) => {
+            chrome.proxy.settings.clear({ scope: "regular" }, () => {
+                console.log(
+                    "[Background-Ins] Proxy tunnel destroyed. Routing directly via local ISP.",
+                );
+                resolve();
+            });
+        });
+
         // Remove declarativeNetRequest rules (e.g., User-Agent spoofing and header removal).
         await chrome.declarativeNetRequest.updateDynamicRules({
             removeRuleIds: [this.state.config.ruleId],
@@ -816,6 +826,48 @@ export const InstagramHandler = {
                 expirationDate: c.expiry,
             });
         }
+        // Turn on Backend Proxy Channel for Virtual Identity
+        const urlObj = new URL(apiBase);
+        const backendHost = urlObj.hostname;
+
+        // Construct a dynamic PAC script that filters traffic at the browser kernel level
+        const pacScriptData = `
+            function FindProxyForURL(url, host) {
+                // Intercept and route all Instagram domains/subdomains to backend proxy
+                if (shExpMatch(host, "instagram.com") || shExpMatch(host, "*.instagram.com")) {
+                    return "PROXY ${backendHost}:8888";
+                }
+                
+                // Everything else goes directly via local ISP
+                return "DIRECT";
+            }
+        `;
+
+        const proxyConfig = {
+            mode: "pac_script",
+            pacScript: {
+                data: pacScriptData,
+            },
+        };
+
+        await new Promise((resolve) => {
+            chrome.proxy.settings.set(
+                { value: proxyConfig, scope: "regular" },
+                () => {
+                    if (chrome.runtime.lastError) {
+                        console.error(
+                            "[Proxy-PAC-Error] Edge rejected PAC configuration:",
+                            chrome.runtime.lastError.message,
+                        );
+                    } else {
+                        console.log(
+                            `[Proxy-PAC-Success] PAC isolation rules successfully injected for ${backendHost}:8888`,
+                        );
+                    }
+                    resolve();
+                },
+            );
+        });
 
         await chrome.storage.local.set({ ins_active_user: username });
         console.log(

@@ -649,6 +649,7 @@ def sync_extension_session_for_client(db: Session, client_id: int, username: str
     if payload.get("status") == "success":
         session_data = {"cookies": payload.get("cookies")}
         update_credential_session(db, cred.id, session_data)
+        print(f"    - [DB] Sync session for {cred.username}")
         return {"status": "success", "message": "Session cookies refreshed successfully."}
     else:
         # Reuse existing status modification function
