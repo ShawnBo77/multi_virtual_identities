@@ -834,7 +834,15 @@ export const InstagramHandler = {
         const pacScriptData = `
             function FindProxyForURL(url, host) {
                 // Intercept and route all Instagram domains/subdomains to backend proxy
-                if (shExpMatch(host, "instagram.com") || shExpMatch(host, "*.instagram.com")) {
+                if (
+                    shExpMatch(host, "instagram.com") || 
+                    shExpMatch(host, "*.instagram.com") ||
+                    shExpMatch(host, "cdninstagram.com") || 
+                    shExpMatch(host, "*.cdninstagram.com") ||
+                    shExpMatch(host, "facebook.com") ||
+                    shExpMatch(host, "*.facebook.com") ||
+                    shExpMatch(host, "*.fbcdn.net")
+                ) {
                     return "PROXY ${backendHost}:8888";
                 }
                 
