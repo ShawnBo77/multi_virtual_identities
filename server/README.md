@@ -1,6 +1,6 @@
-# Backend Server & Instagram Scraper
+# Backend Server
 
-This is a backend server built with FastAPI, designed to act as a centralized database for caching Instagram posts and managing an anonymous user following system. It includes a built-in scraper that can run in the background (integrated with the server) or be executed manually via CLI scripts.
+This system is a backend framework built with FastAPI and integrated with Selenium Wire automated scrapers. It acts as a centralized database for caching Instagram post data, downloading raw media files (images/videos) to local storage, and tracking targets anonymously.
 
 ## ⚠️ Disclaimer & Warnings
 
@@ -35,7 +35,9 @@ server
            scrape_metadata.py     <-- Scrape Post JSON Data
 ```
 
-## 📦 Installation
+## 📥 Installation & Setup
+
+Ensure you have the Firefox browser installed on your machine, as the automated Selenium scripts utilize Firefox defaults.
 
 Install all required packages:
 
@@ -53,134 +55,150 @@ pip install -r requirements.txt
 
 ---
 
-## Step 1: Get Instagram Cookies (Required)
+## ⚡ Start the FastAPI Server
 
-Before using either the automated or manual mode, you must capture a valid login session.
-
-1.  Run the cookie catcher script:
-    ```bash
-    python scraper/instagram/ins_cookie_catcher.py
-    ```
-2.  Enter the credentials of your **dummy account** when prompted in the terminal.
-3.  A Firefox browser will open and attempt to log in automatically. Once successful, a file named `ins_cred_{username}.json` will be generated.
-
-**⚠️ Troubleshooting / Manual Login:**
-If the automated login fails (e.g., due to CAPTCHA, Two-Factor Authentication, or "Suspicious Activity" checkpoints), the script will pause and prompt you in the terminal.
-1.  Go to the opened Firefox window.
-2.  **Manually complete the login process** (solve the puzzle or enter the 2FA code) until you successfully reach the Instagram Home feed.
-3.  Return to your terminal and press **[Enter]** to resume the cookie capture process.
----
-
-## Mode A: Automated Background Scraping
-
-This mode stores credentials in the database and automatically scrapes target users in the background while the server runs.
-
-### 1. Import Credentials to Database
-Import the JSON cookie file generated in Step 1 into the SQLite database:
-
-```bash
-python scraper/instagram/import_creds_to_db.py
-```
-
-### 2. Enable the Background Scraper
-Open `app/main.py`. You need to **uncomment** the `lifespan` function and replace the simple `app = FastAPI()` line.
-
-**Change this:**
-```python
-# @contextlib.asynccontextmanager
-# async def lifespan(app: FastAPI):
-#     ...
-#     instagram_scraper.start()
-#     ...
-#     instagram_scraper.stop()
-
-# app = FastAPI(lifespan=lifespan)
-app = FastAPI() 
-```
-
-**To this:**
-```python
-@contextlib.asynccontextmanager
-async def lifespan(app: FastAPI):
-    print("--- Server Starting: Launching Background Scraper ---")
-    instagram_scraper.start()
-    
-    yield
-    
-    print("--- Server Stopping: Shutting down Scraper ---")
-    instagram_scraper.stop()
-
-app = FastAPI(lifespan=lifespan)
-```
-
-### 3. Start Server
-Run the server. The scraper will now run in the background.
-
-```bash
-uvicorn app.main:app
-```
-
----
-
-## Mode B: Manual Workflow (CLI)
-
-If you prefer to control the process step-by-step without running the server background task:
-
-**1. Scrape Metadata (JSON)**
-Fetch post data for a specific user.
-```bash
-# Usage: python scraper/instagram/scrape_metadata.py -u [TARGET_USERNAME] -c [CREDENTIAL_FILE]
-python scraper/instagram/scrape_metadata.py -u target_user -c scraper/instagram/ins_cred_test.json
-```
-*   Data saves to: `data/instagram/{user_pk}/posts/`
-
-**2. Download Media**
-Download images and videos based on the scraped JSON.
-```bash
-# Usage: python scraper/instagram/download_media.py [USER_PK_FOLDER_NAME]
-python scraper/instagram/download_media.py 123456789
-```
-*   Media saves to: `media/instagram/{user_pk}/`
-
-**3. Import to Database**
-Map the downloaded files and JSON data into the database.
-```bash
-# Usage: python scraper/instagram/import_data_to_db.py -u [USER_PK]
-python scraper/instagram/import_data_to_db.py -u 123456789
-```
-
-## ⚡ Start Server
-
-To run the backend server, use `uvicorn`:
-
-```bash
-uvicorn app.main:app
-```
-
-*   `uvicorn`: The ASGI server that runs your FastAPI application.
-*   `app.main`: Specifies the Python module (`main.py` inside the `app` directory).
-*   `:app`: Refers to the FastAPI application instance named `app` within the `app.main` module.
-
-For development purposes, you can add the `--reload` flag:
+Run the following command in your terminal:
 
 ```bash
 uvicorn app.main:app --reload
 ```
-*   `--reload`: This flag enables auto-reloading. The server will automatically detect changes in your code and restart.
 
-The server will start running at `http://127.0.0.1:8000`.
+- **Host Address**: The server launches locally at `http://127.0.0.1:8000`.
+- **Swagger UI Docs**: Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) to visually review and test database API routers.
+- **Proxy Server**: Spawns automatically on port `8888` via the lifespan thread setup.
 
-## 🧪 Test API
+---
 
-Once the server is running, you can access the interactive documentation:
+## Part A: Automated Background Workflow
 
-*   **Swagger UI**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-*   **ReDoc**: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+This option allows the system to completely automate session cookie extraction, cookie lifecycle maintenance, and scheduled post scraping.
+
+### 1. Enable Background Services
+
+Open `app/main.py`. Locate the server `lifespan` definition and uncomment the execution handles to let the server manage their lifecycles:
+
+```python
+@contextlib.asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("--- Server Starting: Launching Background Scraper ---")
+    proxy_task = asyncio.create_task(start_proxy_server(host="0.0.0.0", port=8888))
+
+    # UNCOMMENT THESE LINES TO ENABLE AUTO-BACKGROUND WORK:
+    instagram_credential_scraper.start()
+    instagram_post_scraper.start()
+    instagram_home_feed_scraper.start()
+
+    yield
+
+    print("--- Server Stopping: Shutting down Scraper ---")
+    proxy_task.cancel()
+    # UNCOMMENT THESE LINES FOR GRACEFUL SHUTDOWNS:
+    instagram_credential_scraper.stop()
+    instagram_post_scraper.stop()
+    instagram_home_feed_scraper.stop()
+
+```
+
+### 2. How the Automated Cookie Extraction Works
+
+Once the server is running with `instagram_credential_scraper.start()` active:
+
+- **Automatic Detection**: When a new credential row with a password is added to the database, or an existing session expires, its status becomes **PENDING**. The background service detects it every 60 seconds and launches a Firefox browser window to handle the login.
+
+- **Manual Intervention**: If Instagram triggers a CAPTCHA or 2FA checkpoint during this auto-login, the terminal will pause. Simply complete the login manually inside the popped-up Firefox window until you see the Home feed, then press **[Enter]** in the terminal prompt (`>>> Once you are on the Home page, press [Enter] here to continue <<<`). The service will automatically grab the new cookies and update the database token status to SUCCESS.
+
+---
+
+## Part B: Manual Workflow
+
+If you prefer granular control over execution without background server automation loops, you can chain these standalone command-line utilities step-by-step. (Go to `scraper/instagram/`)
+
+### 1. Extract Session Cookies Manually (`ins_cookie_catcher.py`)
+
+- **Execution**:
+
+```bash
+  python ins_cookie_catcher.py
+```
+
+- **Workflow**: Enter your dummy account credentials. If flagged by checkpoints, complete the login manually in the Firefox window, then press **[Enter]** in your terminal to output the `ins_cred_{username}.json` file.
+
+### 2. Import Local Credentials to DB (`import_creds_to_db.py`)
+
+- **Execution**:
+
+```bash
+  python import_creds_to_db.py
+```
+
+- **Arguments**:
+    - `--shared`: Marks the identity as a shared identity usable by general query tasks.
+    - `--client-id [ID]`: Explicitly links the credentials to a specific client profile.
+
+### 3. Scrape Post Metadata (`scrape_metadata.py`)
+
+- **Purpose**: Uses your active database credentials to access target public profiles and intercepts underlying GraphQL network payloads to capture post.
+
+- **Commands**:
+
+```bash
+  # Example: Scrape the latest posts from a specific target user
+  python scrape_metadata.py -u target_user_abc -c ins_cred_example.json
+
+  # Example: Scrape your own account feed timeline
+  python scrape_metadata.py -hf -c ins_cred_example.json
+```
+
+- **Arguments**:
+- `-u, --usernames`: One or more target handles to parse.
+- `-f, --file`: Path to a text file containing target usernames (one per line).
+- `-hf, --home`: Enables Home Feed Mode to scrape the account's own timeline feed.
+- `-n, --num-posts`: Max count of unique posts to pull (default is 12).
+- `-c, --credentials`: Path to your captured credential file from Step 2.
+
+- **Output Destination**: `data/instagram/{user_pk}/posts/{post_pk}.json`.
+
+### 4. Download Static Assets (`download_media.py`)
+
+- **Purpose**: Instagram image/video source URLs in JSON metadata expire quickly. This script reads the saved JSON directories and downloads permanent physical files to your local disk.
+
+- **Commands**:
+
+```bash
+  # Example: Download all video/image files and profile pictures for a specific User PK folder
+  python download_media.py 34575745
+
+  # Example: Download all media in data/instagram/
+  python download_media.py --all
+```
+
+- **Arguments**:
+- `target_user_pk`: Matches the unique User ID folder name inside data/instagram/.
+- `-p, --posts`: Narrows downloading explicitly to specific listed post PK keys.
+- `-a, --all`: Global Sync Mode. Automatically loops through all user directories to download missing assets.
+
+- **Output Destination**: Saved under static directory paths: `media/instagram/{user_pk}/{post_pk}/`.
+
+### 5. Database Sync (`import_data_to_db.py`)
+
+- **Commands**:
+
+```bash
+  # Example: Full directory scan to build index records for all items
+  python import_data_to_db.py
+
+  # Example: Reconstruct the relation of the credentials and home feeds
+  python import_data_to_db.py -rc
+```
+
+- **Arguments**:
+- `-u, --user_pk`: Syncs entries exclusively for a chosen user UID directory.
+- `-rc, --reconstruct`: Reads local discovery CSV parameters to map structural home feed history configurations.
 
 ## 🛠 Tech Stack
 
-*   **Framework**: FastAPI
-*   **ORM**: SQLAlchemy
-*   **Database**: SQLite
-*   **Validation**: Pydantic
-*   **Server**: Uvicorn
+- **Framework**: FastAPI
+- **ORM**: SQLAlchemy
+- **Database**: SQLite
+- **Validation**: Pydantic
+- **Server**: Uvicorn
